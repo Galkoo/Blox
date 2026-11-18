@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 90 // exact StoreFruit signature: CommF("StoreFruit", "Name-Name", Tool)
+-- blox fruits ladder farm // FIX 91 // UI: gacha cooldown + inventory fruits strip
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -352,16 +352,37 @@ do
 	statusLabels.range=card(co,UDim2.new(0.58,0,0.345,0),UDim2.new(0.42,0,0.215,0),"Range",Color3.fromRGB(120,200,255),Color3.fromRGB(80,140,220))
 	statusLabels.quest=card(co,UDim2.new(0,0,0.59,0),UDim2.new(0.5,-6,0.17,0),"Quest",Color3.fromRGB(140,230,120),Color3.fromRGB(60,180,100))
 	statusLabels.next_=card(co,UDim2.new(0.5,6,0.59,0),UDim2.new(0.5,-6,0.17,0),"Next",Color3.fromRGB(180,160,255),Color3.fromRGB(120,100,240))
-	local lgF=Instance.new("Frame"); lgF.Size=UDim2.new(1,0,0.12,0); lgF.Position=UDim2.new(0,0,0.78,0)
+	local lgF=Instance.new("Frame"); lgF.Size=UDim2.new(1,0,0.055,0); lgF.Position=UDim2.new(0,0,0.76,0)
 	lgF.BackgroundColor3=Color3.fromRGB(22,20,40); lgF.BorderSizePixel=0; lgF.ZIndex=4; lgF.Parent=co
-	corn(lgF,12); strk(lgF,Color3.fromRGB(255,220,90),1,0.5)
-	local lgm=Instance.new("TextLabel"); lgm.Size=UDim2.new(0,70,1,0); lgm.Position=UDim2.new(0,16,0,0); lgm.BackgroundTransparency=1
-	lgm.Text="LEGENDARY"; lgm.TextColor3=Color3.fromRGB(255,220,90); lgm.Font=Enum.Font.GothamBold; lgm.TextSize=11; lgm.TextXAlignment=Enum.TextXAlignment.Left; lgm.ZIndex=5; lgm.Parent=lgF
-	local lgv=Instance.new("TextLabel"); lgv.Size=UDim2.new(1,-110,1,-8); lgv.Position=UDim2.new(0,96,0,4); lgv.BackgroundTransparency=1; lgv.Text="—"
+	corn(lgF,10); strk(lgF,Color3.fromRGB(255,220,90),1,0.5)
+	local lgm=Instance.new("TextLabel"); lgm.Size=UDim2.new(0,70,1,0); lgm.Position=UDim2.new(0,14,0,0); lgm.BackgroundTransparency=1
+	lgm.Text="LEGENDARY"; lgm.TextColor3=Color3.fromRGB(255,220,90); lgm.Font=Enum.Font.GothamBold; lgm.TextSize=10; lgm.TextXAlignment=Enum.TextXAlignment.Left; lgm.ZIndex=5; lgm.Parent=lgF
+	local lgv=Instance.new("TextLabel"); lgv.Size=UDim2.new(1,-100,1,-4); lgv.Position=UDim2.new(0,88,0,2); lgv.BackgroundTransparency=1; lgv.Text="—"
 	lgv.TextColor3=Color3.fromRGB(255,240,180); lgv.Font=Enum.Font.GothamSemibold; lgv.TextScaled=true
 	lgv.TextXAlignment=Enum.TextXAlignment.Left; lgv.TextYAlignment=Enum.TextYAlignment.Center; lgv.ZIndex=5; lgv.Parent=lgF
-	cap(lgv,18,9); statusLabels.legend=lgv
-	local ft=Instance.new("Frame"); ft.Size=UDim2.new(1,0,0.08,0); ft.Position=UDim2.new(0,0,0.91,0); ft.BackgroundTransparency=1; ft.ZIndex=4; ft.Parent=co
+	cap(lgv,16,8); statusLabels.legend=lgv
+
+	local gcF=Instance.new("Frame"); gcF.Size=UDim2.new(0.38,-4,0.055,0); gcF.Position=UDim2.new(0,0,0.82,0)
+	gcF.BackgroundColor3=Color3.fromRGB(24,20,36); gcF.BorderSizePixel=0; gcF.ZIndex=4; gcF.Parent=co
+	corn(gcF,10); strk(gcF,Color3.fromRGB(180,140,255),1,0.5)
+	local gcm=Instance.new("TextLabel"); gcm.Size=UDim2.new(0,52,1,0); gcm.Position=UDim2.new(0,12,0,0); gcm.BackgroundTransparency=1
+	gcm.Text="GACHA"; gcm.TextColor3=Color3.fromRGB(180,140,255); gcm.Font=Enum.Font.GothamBold; gcm.TextSize=10; gcm.TextXAlignment=Enum.TextXAlignment.Left; gcm.ZIndex=5; gcm.Parent=gcF
+	local gcv=Instance.new("TextLabel"); gcv.Size=UDim2.new(1,-74,1,-4); gcv.Position=UDim2.new(0,66,0,2); gcv.BackgroundTransparency=1; gcv.Text="—"
+	gcv.TextColor3=Color3.fromRGB(220,200,255); gcv.Font=Enum.Font.GothamBold; gcv.TextScaled=true
+	gcv.TextXAlignment=Enum.TextXAlignment.Left; gcv.TextYAlignment=Enum.TextYAlignment.Center; gcv.ZIndex=5; gcv.Parent=gcF
+	cap(gcv,18,9); statusLabels.gacha=gcv
+
+	local frF=Instance.new("Frame"); frF.Size=UDim2.new(0.62,-4,0.055,0); frF.Position=UDim2.new(0.38,4,0.82,0)
+	frF.BackgroundColor3=Color3.fromRGB(20,28,32); frF.BorderSizePixel=0; frF.ZIndex=4; frF.Parent=co
+	corn(frF,10); strk(frF,Color3.fromRGB(140,220,180),1,0.5)
+	local frm=Instance.new("TextLabel"); frm.Size=UDim2.new(0,52,1,0); frm.Position=UDim2.new(0,12,0,0); frm.BackgroundTransparency=1
+	frm.Text="FRUITS"; frm.TextColor3=Color3.fromRGB(140,220,180); frm.Font=Enum.Font.GothamBold; frm.TextSize=10; frm.TextXAlignment=Enum.TextXAlignment.Left; frm.ZIndex=5; frm.Parent=frF
+	local frv=Instance.new("TextLabel"); frv.Size=UDim2.new(1,-74,1,-4); frv.Position=UDim2.new(0,66,0,2); frv.BackgroundTransparency=1; frv.Text="—"
+	frv.TextColor3=Color3.fromRGB(200,240,220); frv.Font=Enum.Font.GothamSemibold; frv.TextScaled=true
+	frv.TextXAlignment=Enum.TextXAlignment.Left; frv.TextYAlignment=Enum.TextYAlignment.Center; frv.ZIndex=5; frv.Parent=frF
+	cap(frv,16,8); statusLabels.fruits=frv
+
+	local ft=Instance.new("Frame"); ft.Size=UDim2.new(1,0,0.06,0); ft.Position=UDim2.new(0,0,0.93,0); ft.BackgroundTransparency=1; ft.ZIndex=4; ft.Parent=co
 	local br=Instance.new("TextLabel"); br.Size=UDim2.new(1,0,1,0); br.BackgroundTransparency=1
 	br.Text="built by olivia  ·  discord.gg/ojailbreaks"
 	br.TextColor3=Color3.fromRGB(160,150,200); br.Font=Enum.Font.GothamSemibold; br.TextScaled=true
@@ -1681,6 +1702,40 @@ local function tryStoreFruitByName(name)
 end
 
 local gachaLastTry=0
+local gachaCooldownAt=0
+
+local function formatGachaCooldown(cd)
+	if not cd then return "—" end
+	if cd<=0 then return "READY" end
+	local h=math.floor(cd/3600)
+	local m=math.floor((cd%3600)/60)
+	local s=cd%60
+	if h>0 then return string.format("%d:%02d:%02d",h,m,s) end
+	return string.format("%d:%02d",m,s)
+end
+
+local function readInventoryFruits()
+	local out={}
+	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return out end
+	local inv=pg:FindFirstChild("Inventory"); if not inv then return out end
+	local inner=inv:FindFirstChild("Inventory") or inv
+	local main=inner:FindFirstChild("Main"); if not main then return out end
+	local pc=main:FindFirstChild("PageContent"); if not pc then return out end
+	local tg=pc:FindFirstChild("TileGrid"); if not tg then return out end
+	for _,ch in ipairs(tg:GetChildren()) do
+		if ch.Name:find("Tile%-%d+") then
+			local det=ch:FindFirstChild("Details")
+			if det then
+				local l1=det:FindFirstChild("Line-1") or det:FindFirstChild("Line1")
+				local nm=textOf(l1)
+				if nm and nm~="" and nm~="—" then
+					table.insert(out,nm)
+				end
+			end
+		end
+	end
+	return out
+end
 local function spinGachaStep()
 	if not CFG.GACHA_ENABLED then return false end
 	if os.clock()-gachaLastTry<CFG.GACHA_CHECK_EVERY then return false end
@@ -1688,6 +1743,7 @@ local function spinGachaStep()
 	local cd=parseGachaCheckResult(gachaCheck())
 	if cd==nil then cd=parseGachaCooldownSeconds() end
 	if cd==nil then return false end
+	gachaCooldownAt=os.clock()+(cd or 0)
 	if cd and cd>0 then
 		if CFG.DEBUG then print(("[gacha] cooldown %ds remaining"):format(cd)) end
 		return false
@@ -1714,6 +1770,7 @@ local function spinGachaStep()
 	else
 		if CFG.DEBUG then print("[gacha] no new 1m+ fruit from this spin") end
 	end
+	gachaCooldownAt=os.clock()+7200
 	return true
 end
 
@@ -1863,6 +1920,19 @@ task.spawn(function()
 					local t=legendaryStageText and ("  —  "..legendaryStageText) or ""
 					statusLabels.legend.Text=table.concat(c,"  ·  ")..t
 				end
+			end
+			if statusLabels.gacha then
+				if CFG.GACHA_ENABLED then
+					local remaining=math.max(0,math.floor(gachaCooldownAt-os.clock()))
+					statusLabels.gacha.Text=formatGachaCooldown(remaining)
+				else
+					statusLabels.gacha.Text="OFF"
+				end
+			end
+			if statusLabels.fruits then
+				local list=readInventoryFruits()
+				if #list==0 then statusLabels.fruits.Text="open Inventory → Treasure"
+				else statusLabels.fruits.Text=table.concat(list,", ") end
 			end
 		end
 	end
