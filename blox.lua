@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 86 // real swan gate: TalkTrevor 1→2 + equip 1m+ fruit + TalkTrevor 1
+-- blox fruits ladder farm // FIX 87 // Zioles gacha auto-spin + store on 1m+ fruit
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -50,6 +50,7 @@ local CFG={
 	RIP_INDRA_CUTSCENE_WAIT=15.0,
 	TRUE_TRIPLE_KATANA_NAME="True Triple Katana",
 	PIRATE_TEAM_SETTLE_BOOT=2.0,PIRATE_TEAM_SETTLE_SEA=1.5,
+	GACHA_ENABLED=true,GACHA_BOX_NAME="ZiolesGacha",GACHA_CHECK_EVERY=30.0,GACHA_POST_SPIN_WAIT=1.5,
 }
 
 local SHARK_HINTS={"shark","projectile","skill","hitbox","waterblade","water","wave","aura","aoe"}
@@ -1577,6 +1578,96 @@ function grantTrevorAccess()
 	if CFG.DEBUG then print("[swan] TalkTrevor 1→2→(fruit)→1 fired, access granted") end
 end
 
+local function parseGachaCooldownSeconds()
+	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return nil end
+	local w=pg:FindFirstChild("ZiolesGacha_Window"); if not w then return nil end
+	local f=w:FindFirstChild("Frame"); if not f then return nil end
+	local m=f:FindFirstChild("Main"); if not m then return nil end
+	local fo=m:FindFirstChild("Footer"); if not fo then return nil end
+	local pb=fo:FindFirstChild("PurchaseButton"); if not pb then return nil end
+	local fr=pb:FindFirstChild("Frame"); if not fr then return nil end
+	local tl=fr:FindFirstChild("TextLabel"); if not tl then return nil end
+	local txt=textOf(tl) or ""
+	txt=txt:gsub("^%s+",""):gsub("%s+$","")
+	if txt=="" then return 0 end
+	local lo=txt:lower()
+	if lo:find("free",1,true) or lo:find("ready",1,true) or lo:find("spin",1,true) or lo:find("purchase",1,true) or lo:find("claim",1,true) or lo:find("now",1,true) then return 0 end
+	local h,m2,s=txt:match("(%d+):(%d+):(%d+)")
+	if h then return tonumber(h)*3600+tonumber(m2)*60+tonumber(s) end
+	local m3,s2=txt:match("(%d+):(%d+)")
+	if m3 then return tonumber(m3)*60+tonumber(s2) end
+	local n=tonumber(txt:match("(%d+)"))
+	if n then return n end
+	return 0
+end
+
+local function fruitTools()
+	local out={}
+	local c=LP.Character
+	if c then for _,t in ipairs(c:GetChildren()) do if t:IsA("Tool") then local nm=(t.Name or ""):lower(); for _,fname in ipairs(HIGH_VALUE_FRUITS) do if nm:find(fname:lower(),1,true) then table.insert(out,{tool=t,name=t.Name,where="char"}); break end end end end end
+	local bp=LP:FindFirstChildOfClass("Backpack")
+	if bp then for _,t in ipairs(bp:GetChildren()) do if t:IsA("Tool") then local nm=(t.Name or ""):lower(); for _,fname in ipairs(HIGH_VALUE_FRUITS) do if nm:find(fname:lower(),1,true) then table.insert(out,{tool=t,name=t.Name,where="bp"}); break end end end end end
+	return out
+end
+
+local function fireGachaSpin()
+	local mods=RS:FindFirstChild("Modules"); if not mods then return false end
+	local net=mods:FindFirstChild("Net"); if not net then return false end
+	local gnet=net:FindFirstChild("RF/GachaNetworkRF"); if not gnet then return false end
+	pcall(function() gnet:InvokeServer({{Context="Purchase",BoxName=CFG.GACHA_BOX_NAME}}) end)
+	task.wait(0.3)
+	pcall(function() gnet:InvokeServer({Context="Purchase",BoxName=CFG.GACHA_BOX_NAME}) end)
+	task.wait(CFG.GACHA_POST_SPIN_WAIT)
+	return true
+end
+
+local function tryStoreFruitByName(name)
+	if not name then return false end
+	local attempts={
+		function() CommF:InvokeServer("StoreFruit",name) end,
+		function() CommF:InvokeServer("StoreFruit") end,
+		function() CommF:InvokeServer("Fruit","Store",name) end,
+		function() CommF:InvokeServer("StoreDevilFruit",name) end,
+		function() CommF:InvokeServer("Devil","Store",name) end,
+		function() CommF:InvokeServer("DevilFruit","Store",name) end,
+	}
+	for _,fn in ipairs(attempts) do pcall(fn); task.wait(0.35) end
+	return true
+end
+
+local gachaLastTry=0
+local function spinGachaStep()
+	if not CFG.GACHA_ENABLED then return false end
+	if os.clock()-gachaLastTry<CFG.GACHA_CHECK_EVERY then return false end
+	gachaLastTry=os.clock()
+	local cd=parseGachaCooldownSeconds()
+	if cd==nil then return false end
+	if cd and cd>0 then return false end
+	local beforeNames={}
+	for _,ft in ipairs(fruitTools()) do beforeNames[ft.name]=true end
+	if CFG.DEBUG then print("[gacha] cooldown ready, spinning ZiolesGacha") end
+	fireGachaSpin()
+	task.wait(0.5)
+	local after=fruitTools()
+	local newHigh=nil
+	for _,ft in ipairs(after) do
+		if not beforeNames[ft.name] then newHigh=ft; break end
+	end
+	if newHigh then
+		if CFG.DEBUG then print("[gacha] new 1m+ fruit: "..newHigh.name.." — firing store chain") end
+		local dupe=false
+		for n,_ in pairs(beforeNames) do if n:lower()==newHigh.name:lower() then dupe=true; break end end
+		if dupe then
+			if CFG.DEBUG then print("[gacha] duplicate detected, skipping store") end
+		else
+			tryStoreFruitByName(newHigh.name)
+		end
+	else
+		if CFG.DEBUG then print("[gacha] no new 1m+ fruit from this spin") end
+	end
+	return true
+end
+
 local function enterFlamingoArena()
 	pcall(function() CommF:InvokeServer("requestEntrance",CFG.DON_SWAN_ARENA_POS) end); task.wait(0.4)
 	stepTravel(CFG.DON_SWAN_ARENA_POS)
@@ -1751,6 +1842,7 @@ task.spawn(function()
 			if shipExitStep() then task.wait(0.5) end
 			if legendarySwordStep() then task.wait(0.3) end
 			if cursedSwordStep() then task.wait(0.3) end
+			if spinGachaStep() then task.wait(0.3) end
 			if not iceQuestDone and readLevel()>=CFG.ICE_LEVEL then
 				runIceQuest()
 				currentIsland=nil; currentMode=nil; currentMobSet=nil; currentFarmSpot=nil
