@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 104 // stricter Check parser (never fake-ready) + deep return log
+-- blox fruits ladder farm // FIX 133 // persist gacha cooldown to disk — survives script restart
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -50,7 +50,14 @@ local CFG={
 	RIP_INDRA_CUTSCENE_WAIT=15.0,
 	TRUE_TRIPLE_KATANA_NAME="True Triple Katana",
 	PIRATE_TEAM_SETTLE_BOOT=2.0,PIRATE_TEAM_SETTLE_SEA=1.5,
-	GACHA_ENABLED=true,GACHA_BOX_NAME="ZiolesGacha",GACHA_CHECK_EVERY=30.0,GACHA_POST_SPIN_WAIT=1.5,
+	GACHA_ENABLED=true,GACHA_BOX_NAME="ZiolesGacha",GACHA_CHECK_EVERY=10.0,GACHA_POST_SPIN_WAIT=1.5,GACHA_MIN_LEVEL=50,GACHA_PRICE_FALLBACK=32350,GACHA_PRICE_PER_LEVEL=35,
+	ANTIAFK_ENABLED=false,ANTIAFK_MIN=90,ANTIAFK_MAX=170,
+	HIT_JITTER_PCT=0.35,FIRE_JITTER_PCT=0.25,
+	HOVER_WOBBLE_ENABLED=true,HOVER_WOBBLE_AMP=1.8,HOVER_WOBBLE_FREQ=0.9,HOVER_WOBBLE_NOISE=0.6,
+	HOVER_OFFSET_JITTER=2.5,HOVER_OFFSET_RETARGET_EVERY=2.2,
+	BREATHER_ENABLED=false,BREATHER_EVERY_MIN=7,BREATHER_EVERY_MAX=13,BREATHER_MIN=12,BREATHER_MAX=34,
+	MOB_APPROACH_JITTER=0.18,
+	COMBO_SHUFFLE=true,
 }
 
 local SHARK_HINTS={"shark","projectile","skill","hitbox","waterblade","water","wave","aura","aoe"}
@@ -239,6 +246,46 @@ local lastEquipTime=0
 
 local function isRun() return _G.BF_RUN==true end
 local function trackConn(c) table.insert(conns,c); return c end
+
+local function jitter(base,pct)
+	local p=pct or 0.25
+	local lo=base*(1-p); local hi=base*(1+p)
+	return lo+(hi-lo)*math.random()
+end
+local function jitHit() return jitter(CFG.HIT_INTERVAL,CFG.HIT_JITTER_PCT) end
+local function jitFire() return jitter(0.35,CFG.FIRE_JITTER_PCT) end
+local function jitApproach() return CFG.MOB_APPROACH_STEP*(1+(math.random()*2-1)*CFG.MOB_APPROACH_JITTER) end
+
+local hoverWobbleSeed=math.random()*1000
+local hoverOffsetBias=0
+local hoverOffsetBiasAt=0
+local gachaBusy=false
+local function refreshHoverOffsetBias()
+	if os.clock()-hoverOffsetBiasAt<CFG.HOVER_OFFSET_RETARGET_EVERY then return end
+	hoverOffsetBiasAt=os.clock()
+	hoverOffsetBias=(math.random()*2-1)*CFG.HOVER_OFFSET_JITTER
+end
+local function hoverWobble(t)
+	if not CFG.HOVER_WOBBLE_ENABLED then return 0,0,0 end
+	local s=hoverWobbleSeed
+	local w1=math.sin((t+s)*CFG.HOVER_WOBBLE_FREQ)
+	local w2=math.sin((t*1.37+s*0.9)*CFG.HOVER_WOBBLE_FREQ*1.3)
+	local w3=math.sin((t*0.7+s*1.4)*CFG.HOVER_WOBBLE_FREQ*0.6)
+	local amp=CFG.HOVER_WOBBLE_AMP
+	local n=CFG.HOVER_WOBBLE_NOISE
+	local dx=w1*amp+(math.random()*2-1)*n
+	local dy=w2*amp*0.6+(math.random()*2-1)*n*0.6
+	local dz=w3*amp+(math.random()*2-1)*n
+	return dx,dy,dz
+end
+
+local function releaseVirtualUser()
+	local ok,VU=pcall(function() return game:GetService("VirtualUser") end)
+	if not ok or not VU then return end
+	pcall(function() VU:ReleaseController() end)
+end
+releaseVirtualUser()
+
 local function myChar() return LP.Character end
 local function myHRP() local c=myChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 local function myHum() local c=myChar(); return c and c:FindFirstChildOfClass("Humanoid") end
@@ -265,6 +312,7 @@ local function fullStop()
 	if not isRun() then return end
 	_G.BF_RUN=false
 	setPlayerPlatformStand(false)
+	pcall(function() local vu=game:GetService("VirtualUser"); vu:ReleaseController() end)
 	for _,c in ipairs(conns) do pcall(function() c:Disconnect() end) end
 	table.clear(conns)
 	for _,cn in ipairs({hoverConn,noClipConn,bossLockConn,playerPlatformConn}) do if cn then pcall(function() cn:Disconnect() end) end end
@@ -546,7 +594,7 @@ end)
 
 playerPlatformConn=RunService.Heartbeat:Connect(function()
 	if not isRun() then return end
-	if shipExiting or donSwanBusy or zQuestBusy then return end
+	if shipExiting or donSwanBusy or zQuestBusy or gachaBusy then return end
 	if not playerPlatformOn then return end
 	local h=myHum(); if h and not h.PlatformStand then pcall(function() h.PlatformStand=true end) end
 end)
@@ -1151,19 +1199,43 @@ local function stepTravelAt(pos,speed)
 	if not isRun() then return false end
 	local h=myHRP(); if not h then return false end
 	travelling=true
-	local st=os.clock()
 	local s=speed or CFG.TRAVEL_SPEED
-	while isRun() and amAlive() do
-		local cur=h.Position; local to=pos-cur; local d=to.Magnitude
-		if d<=CFG.ARRIVE_RADIUS then break end
-		local stp=math.min(d,s*CFG.TRAVEL_STEP)
-		local dir=to.Unit; local np=cur+dir*stp
-		pcall(function() h.CFrame=CFrame.new(np,np+dir); h.AssemblyLinearVelocity=Vector3.zero; h.AssemblyAngularVelocity=Vector3.zero end)
-		if os.clock()-st>CFG.TRAVEL_TIMEOUT then break end
-		task.wait(CFG.TRAVEL_STEP)
+	local attempts=0
+	local arrived=false
+	while isRun() and amAlive() and attempts<3 do
+		attempts=attempts+1
+		local st=os.clock()
+		local stallCt,lastD=0,math.huge
+		while isRun() and amAlive() do
+			local cur=h.Position; local to=pos-cur; local d=to.Magnitude
+			if d<=CFG.ARRIVE_RADIUS then arrived=true; break end
+			if math.abs(lastD-d)<0.05 then stallCt=stallCt+1 else stallCt=0 end
+			lastD=d
+			if stallCt>12 then break end
+			local stp=math.min(d,s*CFG.TRAVEL_STEP)
+			local dir=to.Unit; local np=cur+dir*stp
+			pcall(function() h.CFrame=CFrame.new(np,np+dir); h.AssemblyLinearVelocity=Vector3.zero; h.AssemblyAngularVelocity=Vector3.zero end)
+			if os.clock()-st>CFG.TRAVEL_TIMEOUT then break end
+			task.wait(CFG.TRAVEL_STEP)
+		end
+		if arrived then break end
+		s=s*1.5
+		if CFG.DEBUG then print(("[travel] attempt %d short of (%.0f,%.0f,%.0f) by %.1f — retrying faster"):format(attempts,pos.X,pos.Y,pos.Z,(myHRP() and (myHRP().Position-pos).Magnitude) or -1)) end
+		task.wait(0.15)
+	end
+	if amAlive() then
+		local h2=myHRP()
+		if h2 then
+			local cur=h2.Position
+			local dist=(cur-pos).Magnitude
+			if dist>CFG.ARRIVE_RADIUS and dist<=CFG.MAX_RANGE then
+				pcall(function() h2.CFrame=CFrame.new(pos); h2.AssemblyLinearVelocity=Vector3.zero; h2.AssemblyAngularVelocity=Vector3.zero end)
+				if CFG.DEBUG then print(("[travel] final snap to (%.0f,%.0f,%.0f) after drift %.1f"):format(pos.X,pos.Y,pos.Z,dist)) end
+			end
+		end
 	end
 	travelling=false
-	return amAlive()
+	return amAlive() and arrived
 end
 local function stepTravel(pos) return stepTravelAt(pos,CFG.TRAVEL_SPEED) end
 
@@ -1273,7 +1345,7 @@ local function approachMob(mob)
 		if np.Y<mY then np=Vector3.new(np.X,mY,np.Z) end
 		pcall(function() h.CFrame=CFrame.new(np,c.Position); h.AssemblyLinearVelocity=Vector3.zero; h.AssemblyAngularVelocity=Vector3.zero end)
 		if os.clock()-st>CFG.MOB_APPROACH_TIMEOUT then break end
-		task.wait(CFG.MOB_APPROACH_STEP)
+		task.wait(jitApproach())
 	end
 	travelling=false
 	return amAlive()
@@ -1283,12 +1355,14 @@ local function startIslandQuest(isl,n,t) fireIslandPreStart(isl); pcall(function
 local function abandonQuest() pcall(function() CommF:InvokeServer("AbandonQuest") end) end
 
 hoverConn=RunService.Heartbeat:Connect(function(dt)
-	if not isRun() or travelling or busy or legendaryBusy or shipExiting or donSwanBusy or zQuestBusy then return end
+	if not isRun() or travelling or busy or legendaryBusy or shipExiting or donSwanBusy or zQuestBusy or gachaBusy then return end
 	local h=myHRP(); if not h then return end
 	local m=currentTarget; local cf
 	if m and m.Parent and alive(m) then
 		local c=mobPart(m); if not c then return end
-		local hp=c.Position+Vector3.new(0,currentHoverOffset,0)
+		refreshHoverOffsetBias()
+		local wx,wy,wz=hoverWobble(os.clock())
+		local hp=c.Position+Vector3.new(wx,currentHoverOffset+hoverOffsetBias+wy,wz)
 		cf=tweenedCFrame(h.Position,hp,CFG.HOVER_LOOK and c.Position or nil,dt,CFG.HOVER_TWEEN_SPEED)
 		lastHoldCFrame=cf
 	else
@@ -1301,7 +1375,13 @@ end)
 local nextCombo
 do
 	local c=1
-	function nextCombo() local n=c; c=c+1; if c>CFG.COMBO_MAX then c=1 end; return n end
+	function nextCombo()
+		if CFG.COMBO_SHUFFLE then
+			local n=math.random(1,math.max(1,CFG.COMBO_MAX))
+			return n
+		end
+		local n=c; c=c+1; if c>CFG.COMBO_MAX then c=1 end; return n
+	end
 end
 local function fireHit(p) pcall(function() RE_Hit:FireServer(p,{},nil,newHitId()) end) end
 local function fireSwing(c) pcall(function() RE_Atk:FireServer(CFG.CHARGE,c or 1) end) end
@@ -1352,7 +1432,7 @@ local function chainKill(set)
 				while isRun() and amAlive() and alive(m) and isQuestMob(m,set) do
 					if shouldBreakForShipExit() or shouldBreakForDonSwan() then break end
 					pinAboveMob(m,CFG.HIT_INTERVAL)
-					if os.clock()-lsw>0.35 then fireSwing(nextCombo()); lsw=os.clock() end
+					if os.clock()-lsw>jitFire() then fireSwing(nextCombo()); lsw=os.clock() end
 					p=mobPart(m) or p; fireHit(p)
 					if os.clock()-lhc>CFG.RETRY_WINDOW then
 						local ch=mobHp(m)
@@ -1369,7 +1449,7 @@ local function chainKill(set)
 						lhp=ch; lhc=os.clock()
 					end
 					if os.clock()-t0>CFG.MOB_TIMEOUT then break end
-					task.wait(CFG.HIT_INTERVAL)
+					task.wait(jitHit())
 				end
 				if res then break end
 				killed=killed+1
@@ -1448,7 +1528,7 @@ local function killBossGeneric(findFn,hoff,setText,onRespawn)
 				local t0,lsw,lhc,lhp,ret=os.clock(),os.clock(),os.clock(),mobHp(m),0
 				while isRun() and amAlive() and m and m.Parent and alive(m) do
 					pinAboveMob(m,CFG.HIT_INTERVAL)
-					if os.clock()-lsw>0.35 then fireSwing(nextCombo()); lsw=os.clock() end
+					if os.clock()-lsw>jitFire() then fireSwing(nextCombo()); lsw=os.clock() end
 					p=mobPart(m) or p; if p then fireHit(p) end
 					if os.clock()-lhc>CFG.RETRY_WINDOW then
 						local ch=mobHp(m)
@@ -1463,7 +1543,7 @@ local function killBossGeneric(findFn,hoff,setText,onRespawn)
 						lhp=ch; lhc=os.clock()
 					end
 					if os.clock()-t0>CFG.MOB_TIMEOUT then break end
-					task.wait(CFG.HIT_INTERVAL)
+					task.wait(jitHit())
 				end
 				setHoverTarget(nil); clearBossLock()
 				if not findFn() then if setText then setText("down") end; return end
@@ -1492,10 +1572,10 @@ local function hitBossToHalf(findFn,hoff,setText)
 	local t0,lsw=os.clock(),os.clock()
 	while isRun() and amAlive() and m and m.Parent and alive(m) and mobHp(m)>halfHP do
 		pinAboveMob(m,CFG.HIT_INTERVAL)
-		if os.clock()-lsw>0.35 then fireSwing(nextCombo()); lsw=os.clock() end
+		if os.clock()-lsw>jitFire() then fireSwing(nextCombo()); lsw=os.clock() end
 		local p=mobPart(m); if p then fireHit(p) end
 		if os.clock()-t0>CFG.MOB_TIMEOUT then break end
-		task.wait(CFG.HIT_INTERVAL)
+		task.wait(jitHit())
 	end
 	setHoverTarget(nil); clearBossLock()
 	if setText then setText(("phase2 at %d%%"):format(hum and math.floor((mobHp(m)/maxHP)*100) or 50)) end
@@ -1601,23 +1681,92 @@ local function parseGachaCooldownSeconds()
 	local txt=textOf(tl) or ""
 	txt=txt:gsub("^%s+",""):gsub("%s+$","")
 	if txt=="" then return 0 end
+	if txt:find("$",1,true) then return 0 end
 	local lo=txt:lower()
-	if lo:find("free",1,true) or lo:find("ready",1,true) or lo:find("spin",1,true) or lo:find("purchase",1,true) or lo:find("claim",1,true) or lo:find("now",1,true) then return 0 end
+	if lo:find("free",1,true) or lo:find("ready",1,true) or lo:find("spin",1,true) or lo:find("purchase",1,true) or lo:find("claim",1,true) or lo:find("buy",1,true) or lo:find("roll",1,true) or lo:find("open",1,true) then return 0 end
+	local h1,m1=lo:match("(%d+)%s*h%s*(%d+)%s*m")
+	if h1 then return (tonumber(h1) or 0)*3600+(tonumber(m1) or 0)*60 end
+	local hh=lo:match("(%d+)%s*h%f[%A]")
+	if hh then return (tonumber(hh) or 0)*3600 end
+	local mm=lo:match("(%d+)%s*m%f[%A]")
+	if mm then return (tonumber(mm) or 0)*60 end
+	local ss=lo:match("(%d+)%s*s%f[%A]")
+	if ss then return (tonumber(ss) or 0) end
 	local h,m2,s=txt:match("(%d+):(%d+):(%d+)")
 	if h then return (tonumber(h) or 0)*3600+(tonumber(m2) or 0)*60+(tonumber(s) or 0) end
-	local m3,s2=txt:match("(%d+):(%d+)")
-	if m3 then return (tonumber(m3) or 0)*60+(tonumber(s2) or 0) end
-	local n=tonumber(txt:match("(%d+)"))
-	if n then return n end
-	return 0
+	local h3,m3=txt:match("(%d+):(%d+)")
+	if h3 then return (tonumber(h3) or 0)*3600+(tonumber(m3) or 0)*60 end
+	return nil
 end
+
+local function parseErrorMessageCooldown(msg)
+	if not msg or type(msg)~="string" then return nil end
+	local h,m=msg:match("(%d+):(%d+)")
+	if h and m then return (tonumber(h) or 0)*3600+(tonumber(m) or 0)*60 end
+	local mm=msg:match("(%d+)%s*m")
+	if mm then return (tonumber(mm) or 0)*60 end
+	local hh=msg:match("(%d+)%s*h")
+	if hh then return (tonumber(hh) or 0)*3600 end
+	return nil
+end
+
+local function coerceCd(n)
+	if type(n)~="number" then return n end
+	if n>1e9 then
+		local now=os.time()
+		local d=n-now
+		if d<0 then return 0 end
+		return math.floor(d)
+	end
+	return math.max(0,math.floor(n))
+end
+
+local gachaCachedPrice=nil
+local gachaCachedPriceAt=0
+
+local function parseGachaPrice()
+	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return nil end
+	local w=pg:FindFirstChild("ZiolesGacha_Window"); if not w then return nil end
+	local f=w:FindFirstChild("Frame"); if not f then return nil end
+	local m=f:FindFirstChild("Main"); if not m then return nil end
+	local fo=m:FindFirstChild("Footer"); if not fo then return nil end
+	local pb=fo:FindFirstChild("PurchaseButton"); if not pb then return nil end
+	local fr=pb:FindFirstChild("Frame"); if not fr then return nil end
+	local tl=fr:FindFirstChild("TextLabel"); if not tl then return nil end
+	local txt=textOf(tl) or ""
+	if not txt:find("$",1,true) then return nil end
+	local digits=txt:gsub("[^%d]","")
+	local n=tonumber(digits)
+	if not n or n<=0 then return nil end
+	gachaCachedPrice=n
+	gachaCachedPriceAt=os.clock()
+	return n
+end
+
+local function getGachaPrice()
+	local live=parseGachaPrice()
+	if live then return live,"label" end
+	if gachaCachedPrice then return gachaCachedPrice,"cached" end
+	local lvl=readLevel()
+	local est=math.max(CFG.GACHA_PRICE_FALLBACK,lvl*CFG.GACHA_PRICE_PER_LEVEL)
+	return est,"estimate"
+end
+
+task.spawn(function()
+	while isRun() do
+		if parseGachaPrice() and CFG.DEBUG then
+			print(("[gacha] cached live price: %d (lvl %d)"):format(gachaCachedPrice,readLevel()))
+		end
+		task.wait(5)
+	end
+end)
 
 local function parseGachaCheckResult(r)
 	if r==nil then return nil end
 	if type(r)=="boolean" then return r and 0 or 86400 end
-	if type(r)=="number" then return math.max(0,math.floor(r)) end
+	if type(r)=="number" then return coerceCd(r) end
 	if type(r)=="string" then
-		local n=tonumber(r); if n then return math.max(0,math.floor(n)) end
+		local n=tonumber(r); if n then return coerceCd(n) end
 		local lo=r:lower()
 		if lo:find("ready",1,true) or lo:find("free",1,true) then return 0 end
 		local h,m,s=r:match("(%d+):(%d+):(%d+)")
@@ -1627,17 +1776,33 @@ local function parseGachaCheckResult(r)
 		return nil
 	end
 	if type(r)=="table" then
-		for _,k in ipairs({"Cooldown","cooldown","Remaining","remaining","TimeLeft","timeLeft","NextSpin","nextSpin","Seconds","seconds","Time","time","NextPurchase","nextPurchase","NextClaim","nextClaim"}) do
+		for _,k in ipairs({"Cooldown","cooldown","Remaining","remaining","TimeLeft","timeLeft","NextSpin","nextSpin","Seconds","seconds","Time","time","NextPurchase","nextPurchase","NextClaim","nextClaim","EndTime","endTime","ExpiresAt","expiresAt","NextAt","nextAt"}) do
 			local v=r[k]
-			if type(v)=="number" then return math.max(0,math.floor(v)) end
-			if type(v)=="string" then local n=tonumber(v); if n then return math.max(0,math.floor(n)) end end
+			if type(v)=="number" then return coerceCd(v) end
+			if type(v)=="string" then local n=tonumber(v); if n then return coerceCd(n) end end
+			if type(v)=="table" then
+				for _,sk in ipairs({"EndTime","endTime","End","end","ExpiresAt","expiresAt","At","at","Until","until","Time","time","Remaining","remaining","Seconds","seconds"}) do
+					local sv=v[sk]
+					if type(sv)=="number" then return coerceCd(sv) end
+					if type(sv)=="string" then local n=tonumber(sv); if n then return coerceCd(n) end end
+				end
+				for _,sv in pairs(v) do
+					if type(sv)=="number" then
+						if sv>1e9 then return coerceCd(sv) end
+						if sv>0 and sv<=86400*2 then return math.floor(sv) end
+					end
+				end
+			end
 		end
 		for _,k in ipairs({"Ready","ready","Can","can","Available","available","CanSpin","canSpin","CanPurchase","canPurchase"}) do
 			if r[k]==true then return 0 end
 			if r[k]==false then return 86400 end
 		end
 		for _,v in pairs(r) do
-			if type(v)=="number" and v>60 and v<=86400*2 then return math.max(0,math.floor(v)) end
+			if type(v)=="number" then
+				if v>1e9 then return coerceCd(v) end
+				if v>60 and v<=86400*2 then return math.floor(v) end
+			end
 		end
 		return nil
 	end
@@ -1686,14 +1851,43 @@ local function fruitTools()
 end
 
 local function fireGachaSpin()
-	local mods=RS:FindFirstChild("Modules"); if not mods then return false end
-	local net=mods:FindFirstChild("Net"); if not net then return false end
-	local gnet=net:FindFirstChild("RF/GachaNetworkRF"); if not gnet then return false end
-	pcall(function() gnet:InvokeServer({{Context="Purchase",BoxName=CFG.GACHA_BOX_NAME}}) end)
+	local mods=RS:FindFirstChild("Modules"); if not mods then return nil end
+	local net=mods:FindFirstChild("Net"); if not net then return nil end
+	local gnet=net:FindFirstChild("RF/GachaNetworkRF"); if not gnet then return nil end
+	local richest=nil
+	local ok1,res1=pcall(function() return {gnet:InvokeServer({{Context="Purchase",BoxName=CFG.GACHA_BOX_NAME}})} end)
+	if ok1 and res1 then
+		logGachaReturn("Purchase(wrapped)",res1)
+		if #res1>0 then richest=res1 end
+	end
 	task.wait(0.3)
-	pcall(function() gnet:InvokeServer({Context="Purchase",BoxName=CFG.GACHA_BOX_NAME}) end)
+	local ok2,res2=pcall(function() return {gnet:InvokeServer({Context="Purchase",BoxName=CFG.GACHA_BOX_NAME})} end)
+	if ok2 and res2 then
+		logGachaReturn("Purchase(unwrapped)",res2)
+		if #res2>0 and (not richest or #res2>#richest) then richest=res2 end
+	end
 	task.wait(CFG.GACHA_POST_SPIN_WAIT)
-	return true
+	return richest
+end
+
+local function dismissGachaPopups()
+	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return 0 end
+	local hits=0
+	local sw=pg:FindFirstChild("SpinnerWindow")
+	if sw then
+		local above=sw:FindFirstChild("AboveSpinner")
+		local nav=above and above:FindFirstChild("Navigation")
+		local btn=nav and nav:FindFirstChild("CloseButton")
+		if btn then
+			pcall(function() if type(firesignal)=="function" then firesignal(btn.MouseButton1Click) end end)
+			pcall(function() if type(firesignal)=="function" then firesignal(btn.Activated) end end)
+			pcall(function() if type(firesignal)=="function" and btn.MouseButton1Down then firesignal(btn.MouseButton1Down) end end)
+			pcall(function() sw:Destroy() end)
+			hits=hits+1
+			if CFG.DEBUG then print("[gacha] SpinnerWindow close fired + destroyed") end
+		end
+	end
+	return hits
 end
 
 local function tryStoreFruitByName(name)
@@ -1710,6 +1904,40 @@ end
 local gachaLastTry=0
 local gachaCooldownAt=0
 
+local function gachaCdPath() return CFG.STATE_FOLDER.."/bf_gacha_cd_"..userKey()..".txt" end
+local function saveGachaCd(endEpoch)
+	if type(writefile)~="function" then return end
+	ensureStateFolder()
+	pcall(function() writefile(gachaCdPath(),tostring(endEpoch)) end)
+	if CFG.DEBUG then print(("[gacha] cooldown saved to disk: ends at epoch %d"):format(endEpoch)) end
+end
+local function loadGachaCd()
+	if type(isfile)~="function" or type(readfile)~="function" then return end
+	local path=gachaCdPath()
+	local ok,exists=pcall(function() return isfile(path) end)
+	if not ok or not exists then return end
+	local ok2,data=pcall(function() return readfile(path) end)
+	if not ok2 or not data then return end
+	local endEpoch=tonumber((data:gsub("%s","")))
+	if not endEpoch then return end
+	local now=os.time()
+	local remaining=endEpoch-now
+	if remaining<=0 then
+		if CFG.DEBUG then print("[gacha] saved cooldown already expired") end
+		return
+	end
+	if remaining>172800 then remaining=172800 end
+	gachaCooldownAt=os.clock()+remaining
+	if CFG.DEBUG then print(("[gacha] loaded cooldown from disk: %ds remaining"):format(remaining)) end
+end
+local function setGachaCdFromDuration(cdSeconds,reason)
+	if cdSeconds>172800 then cdSeconds=172800 end
+	gachaCooldownAt=os.clock()+cdSeconds
+	saveGachaCd(os.time()+cdSeconds)
+	if CFG.DEBUG and reason then print(("[gacha] cd set: %ds (%s)"):format(cdSeconds,reason)) end
+end
+loadGachaCd()
+
 local function formatGachaCooldown(cd)
 	if not cd then return "—" end
 	if cd<=0 then return "READY" end
@@ -1722,22 +1950,108 @@ end
 
 
 local function spinGachaStep()
-	if not CFG.GACHA_ENABLED then return false end
-	if os.clock()-gachaLastTry<CFG.GACHA_CHECK_EVERY then return false end
-	gachaLastTry=os.clock()
-	local cd=parseGachaCheckResult(gachaCheck())
-	if cd==nil then cd=parseGachaCooldownSeconds() end
-	if cd==nil then return false end
-	gachaCooldownAt=os.clock()+(cd or 0)
-	if cd and cd>0 then
-		if CFG.DEBUG then print(("[gacha] cooldown %ds remaining"):format(cd)) end
+	if not CFG.GACHA_ENABLED then if CFG.DEBUG then print("[gacha] disabled") end; return false end
+	local lvl=readLevel()
+	if lvl<CFG.GACHA_MIN_LEVEL then
+		if CFG.DEBUG and os.clock()-gachaLastTry>30 then print(("[gacha] level gate %d/%d"):format(lvl,CFG.GACHA_MIN_LEVEL)); gachaLastTry=os.clock() end
 		return false
 	end
+	if os.clock()-gachaLastTry<CFG.GACHA_CHECK_EVERY then return false end
+	gachaLastTry=os.clock()
+	if gachaCooldownAt>os.clock()+1 then
+		if CFG.DEBUG then print(("[gacha] local cooldown %ds remaining — not firing"):format(math.floor(gachaCooldownAt-os.clock()))) end
+		return false
+	end
+	local uiCd=parseGachaCooldownSeconds()
+	if uiCd~=nil and uiCd>0 then
+		setGachaCdFromDuration(uiCd,"ui label")
+		if CFG.DEBUG then print(("[gacha] UI label says %ds on cd — not firing"):format(uiCd)) end
+		return false
+	end
+	local checkRes=gachaCheck()
+	local checkCd=parseGachaCheckResult(checkRes)
+	if checkCd~=nil and checkCd>0 then
+		setGachaCdFromDuration(checkCd,"server check")
+		if CFG.DEBUG then print(("[gacha] server Check says %ds on cd — not firing"):format(checkCd)) end
+		return false
+	end
+	local price,priceSource=getGachaPrice()
+	local beli=readBeli()
+	if beli<price then
+		if CFG.DEBUG then print(("[gacha] belli gate: have %d / need %d (%s) — farming until enough"):format(beli,price,priceSource)) end
+		return false
+	end
+	if CFG.DEBUG then print(("[gacha] belli ok: have %d / need %d (%s)"):format(beli,price,priceSource)) end
+	if type(checkRes)=="table" and checkRes.RequirementsMet==false then
+		gachaCooldownAt=os.clock()+60
+		if CFG.DEBUG then print("[gacha] server Check says RequirementsMet=false — retry in 60s") end
+		return false
+	end
+	if CFG.DEBUG then print("[gacha] all gates clean — tweening + firing Purchase") end
+	local safeSpot=nil
+	if currentIsland and currentIsland.questGiver then
+		safeSpot=currentIsland.questGiver
+	end
+	if not safeSpot then
+		if CFG.DEBUG then print("[gacha] no current island quest giver — skipping spin this tick for safety") end
+		return false
+	end
+	gachaBusy=true
+	setHoverTarget(nil); clearBossLock(); resetHold()
+	setPlayerPlatformStand(false)
+	if CFG.DEBUG then print("[gacha] FARM PAUSED — relocating to safety pocket") end
+	task.wait(0.15)
 	local beforeNames={}
 	for _,ft in ipairs(fruitTools()) do beforeNames[ft.name]=true end
-	if CFG.DEBUG then print("[gacha] cooldown ready, spinning ZiolesGacha") end
-	fireGachaSpin()
-	task.wait(0.5)
+	if CFG.DEBUG then print(("[gacha] tweening to safety pocket @ quest giver (%.0f,%.0f,%.0f)"):format(safeSpot.X,safeSpot.Y,safeSpot.Z)) end
+	pcall(function() stepTravel(safeSpot) end)
+	task.wait(0.3)
+	local arrived=false
+	for try=1,3 do
+		local h=myHRP()
+		if h then
+			local d=(h.Position-safeSpot).Magnitude
+			if CFG.DEBUG then print(("[gacha] arrival check %d: %.1f studs from pocket"):format(try,d)) end
+			if d<=8 then arrived=true; break end
+		end
+		pcall(function() stepTravel(safeSpot) end)
+		task.wait(0.3)
+	end
+	if not arrived then
+		if CFG.DEBUG then print("[gacha] couldn't reach safety pocket cleanly — skipping spin, retrying soon") end
+		gachaBusy=false
+		gachaCooldownAt=os.clock()+20
+		return false
+	end
+	task.spawn(function()
+		while isRun() and gachaBusy do
+			local h=myHRP()
+			if h then
+				local d=(h.Position-safeSpot).Magnitude
+				if d>4 then pcall(function() stepTravelAt(safeSpot,120) end) end
+			end
+			task.wait(0.4)
+		end
+	end)
+	if CFG.DEBUG then print("[gacha] settled at safety pocket, firing Purchase") end
+	local spinRes=fireGachaSpin()
+	if CFG.DEBUG then print("[gacha] Purchase sent, waiting 15s for fruit to land") end
+	local waitStart=os.clock()
+	local firstNew=nil
+	while os.clock()-waitStart<15 do
+		task.wait(0.5)
+		for _,ft in ipairs(fruitTools()) do
+			if not beforeNames[ft.name] then firstNew=ft; break end
+		end
+		if firstNew then
+			if CFG.DEBUG then print(("[gacha] fruit landed after %.1fs: %s"):format(os.clock()-waitStart,firstNew.name)) end
+			break
+		end
+	end
+	task.wait(0.4)
+	dismissGachaPopups()
+	task.wait(0.4)
+	dismissGachaPopups()
 	local after=fruitTools()
 	local newHigh=nil
 	for _,ft in ipairs(after) do
@@ -1751,17 +2065,44 @@ local function spinGachaStep()
 			if CFG.DEBUG then print("[gacha] duplicate detected, skipping store") end
 		else
 			tryStoreFruitByName(newHigh.name)
+			task.wait(1.0)
+			local stillHas=false
+			for _,ft in ipairs(fruitTools()) do if ft.name==newHigh.name then stillHas=true; break end end
+			if stillHas then
+				if CFG.DEBUG then print("[gacha] store may not have taken — retrying") end
+				tryStoreFruitByName(newHigh.name)
+				task.wait(1.0)
+			end
+			if CFG.DEBUG then print("[gacha] fruit stored — resuming farm") end
 		end
 	else
 		if CFG.DEBUG then print("[gacha] no new 1m+ fruit from this spin") end
 	end
-	task.wait(1.0)
-	local postCd=parseGachaCheckResult(gachaCheck())
-	if postCd~=nil then
-		gachaCooldownAt=os.clock()+postCd
-		if CFG.DEBUG then print(("[gacha] post-spin Check: %ds remaining"):format(postCd)) end
+	dismissGachaPopups()
+	task.wait(0.3)
+	dismissGachaPopups()
+	gachaBusy=false
+	local cdFromError=nil
+	if spinRes and type(spinRes[2])=="table" then
+		local errMsg=spinRes[2].ErrorMessage
+		if type(errMsg)=="string" then
+			cdFromError=parseErrorMessageCooldown(errMsg)
+			if cdFromError and CFG.DEBUG then print(("[gacha] Purchase ErrorMessage cooldown: %ds (from %q)"):format(cdFromError,errMsg)) end
+		end
+		if not cdFromError and type(spinRes[2].Cooldown)=="table" then
+			for k,v in pairs(spinRes[2].Cooldown) do
+				if type(v)=="number" and v>0 then cdFromError=coerceCd(v); if CFG.DEBUG then print(("[gacha] Cooldown.%s = %ds"):format(tostring(k),cdFromError)) end; break end
+			end
+		end
+	end
+	if firstNew then
+		setGachaCdFromDuration(7200,"fruit landed")
+	elseif cdFromError and cdFromError>0 then
+		setGachaCdFromDuration(cdFromError,"server ErrorMessage")
+	elseif cdFromError==0 then
+		setGachaCdFromDuration(7200,"server 00:00 glitch")
 	else
-		gachaCooldownAt=os.clock()+7200
+		setGachaCdFromDuration(7200,"no info")
 	end
 	return true
 end
@@ -1914,11 +2255,16 @@ task.spawn(function()
 				end
 			end
 			if statusLabels.gacha then
-				if CFG.GACHA_ENABLED then
-					local remaining=math.max(0,math.floor(gachaCooldownAt-os.clock()))
-					statusLabels.gacha.Text=formatGachaCooldown(remaining)
-				else
+				if not CFG.GACHA_ENABLED then
 					statusLabels.gacha.Text="OFF"
+				elseif readLevel()<CFG.GACHA_MIN_LEVEL then
+					statusLabels.gacha.Text=("locked (lvl %d / need %d)"):format(readLevel(),CFG.GACHA_MIN_LEVEL)
+				else
+					local uiCd=parseGachaCooldownSeconds()
+					if uiCd~=nil and uiCd>0 and uiCd<=172800 then setGachaCdFromDuration(uiCd,"ui tick") end
+					local remaining=math.max(0,math.floor(gachaCooldownAt-os.clock()))
+					if remaining>172800 then remaining=0; gachaCooldownAt=0 end
+					statusLabels.gacha.Text=formatGachaCooldown(remaining)
 				end
 			end
 		end
@@ -1941,7 +2287,7 @@ task.spawn(function()
 	end
 	while task.wait(0.15) do
 		if not isRun() then break end
-		if busy or zQuestBusy then setHoverTarget(nil); task.wait(0.2)
+		if busy or zQuestBusy or gachaBusy then setHoverTarget(nil); task.wait(0.2)
 		else
 			if not amAlive() then
 				setHoverTarget(nil); clearBossLock(); resetHold()
@@ -2055,8 +2401,14 @@ if LP.Character then task.spawn(onCharacter,LP.Character) end
 
 trackConn(LP.Idled:Connect(function()
 	if not isRun() then return end
-	local vu=game:GetService("VirtualUser")
-	pcall(function() vu:CaptureController(); vu:ClickButton2(Vector2.new()) end)
+	if not CFG.ANTIAFK_ENABLED then return end
+	local ok,vu=pcall(function() return game:GetService("VirtualUser") end)
+	if not ok or not vu then return end
+	pcall(function() vu:CaptureController() end)
+	pcall(function() vu:Button2Down(Vector2.new(0,0),workspace.CurrentCamera and workspace.CurrentCamera.CFrame or CFrame.new()) end)
+	task.wait(0.08)
+	pcall(function() vu:Button2Up(Vector2.new(0,0),workspace.CurrentCamera and workspace.CurrentCamera.CFrame or CFrame.new()) end)
+	pcall(function() vu:ReleaseController() end)
 end))
 
 if CFG.DEBUG then print(("[ladder] armed. user=%s folder=%s SEA2=%s SEA3=%s"):format(userKey(),CFG.STATE_FOLDER,tostring(SEA2_UNLOCKED),tostring(SEA3_UNLOCKED))) end
