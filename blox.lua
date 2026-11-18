@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 95 // luau: tonumber coerce in cooldown parsers
+-- blox fruits ladder farm // FIX 96 // fruits from backpack+char (always works) + F8 manual tab-switch
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1794,16 +1794,59 @@ local function ensureFruitTab()
 	return true
 end
 
+local function readFruitsFromBackpack()
+	local out={}
+	local c=LP.Character
+	if c then
+		for _,t in ipairs(c:GetChildren()) do
+			if t:IsA("Tool") and isFruitName(t.Name) then table.insert(out,t.Name.." [hand]") end
+		end
+	end
+	local bp=LP:FindFirstChildOfClass("Backpack")
+	if bp then
+		for _,t in ipairs(bp:GetChildren()) do
+			if t:IsA("Tool") and isFruitName(t.Name) then table.insert(out,t.Name) end
+		end
+	end
+	return out
+end
+
+local function readAllFruits()
+	local seen={}
+	local out={}
+	for _,n in ipairs(readFruitsFromBackpack()) do
+		local key=n:lower()
+		if not seen[key] then seen[key]=true; table.insert(out,n) end
+	end
+	for _,n in ipairs(readInventoryFruits()) do
+		local key=n:lower()
+		if not seen[key] then seen[key]=true; table.insert(out,n) end
+	end
+	return out
+end
+
 local cachedFruits={}
 local lastFruitCacheTry=0
 local fruitCacheInterval=4.0
 
 local function refreshFruitCache()
-	if not ensureFruitTab() then return end
+	ensureFruitTab()
 	task.wait(0.35)
-	local list=readInventoryFruits()
-	if #list>0 then cachedFruits=list end
+	local list=readAllFruits()
+	cachedFruits=list
 end
+
+trackConn(UIS.InputBegan:Connect(function(input,gpe)
+	if gpe then return end
+	if input.KeyCode==Enum.KeyCode.F8 then
+		if CFG.DEBUG then print("[fruit-tab] F8 — manual Category2 click") end
+		task.spawn(function()
+			ensureFruitTab(); task.wait(0.4)
+			cachedFruits=readAllFruits()
+			if CFG.DEBUG then print(("[fruit-tab] after click: %d fruits found"):format(#cachedFruits)) end
+		end)
+	end
+end))
 local function spinGachaStep()
 	if not CFG.GACHA_ENABLED then return false end
 	if os.clock()-gachaLastTry<CFG.GACHA_CHECK_EVERY then return false end
@@ -1999,12 +2042,14 @@ task.spawn(function()
 				end
 			end
 			if statusLabels.fruits then
+				local live=readAllFruits()
+				if #live>0 then cachedFruits=live end
 				if #cachedFruits==0 then
 					if os.clock()-lastFruitCacheTry>fruitCacheInterval then
 						lastFruitCacheTry=os.clock()
 						task.spawn(refreshFruitCache)
 					end
-					statusLabels.fruits.Text="open Inventory, auto-switching to Treasure..."
+					statusLabels.fruits.Text="no fruits found — eat one or press F8 to retry Treasure tab"
 				else
 					statusLabels.fruits.Text=table.concat(cachedFruits,", ")
 				end
