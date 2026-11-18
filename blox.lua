@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 93 // filter TileGrid by fruit name — tab-agnostic
+-- blox fruits ladder farm // FIX 94 // beefed Category2 click: VIM move+click + firesignal on Frame signals
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1755,37 +1755,43 @@ end
 
 local function ensureFruitTab()
 	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return false end
-	local inv=pg:FindFirstChild("Inventory"); if not inv then return false end
+	local inv=pg:FindFirstChild("Inventory"); if not inv then
+		if CFG.DEBUG then print("[fruit-tab] no Inventory window — open it") end; return false
+	end
 	local inner=inv:FindFirstChild("Inventory") or inv
 	local main=inner:FindFirstChild("Main"); if not main then return false end
 	local nav=main:FindFirstChild("NavigationRail"); if not nav then return false end
 	local cat=nav:FindFirstChild("Category2"); if not cat then return false end
-	local target=cat
-	if not cat:IsA("GuiButton") then
+	if CFG.DEBUG then print(("[fruit-tab] Category2 found (class=%s), firing click"):format(cat.ClassName)) end
+	-- fire signals on Category2 AND descendants (regardless of whether it's a GuiButton)
+	if type(firesignal)=="function" then
+		local function fs(obj)
+			for _,sig in ipairs({"Activated","MouseButton1Click","MouseButton1Down","MouseButton1Up"}) do
+				pcall(function() firesignal(obj[sig]) end)
+			end
+		end
+		fs(cat)
 		for _,d in ipairs(cat:GetDescendants()) do
-			if d:IsA("GuiButton") then target=d; break end
+			if d:IsA("GuiObject") then fs(d) end
 		end
 	end
-	if target:IsA("GuiButton") then
-		if type(firesignal)=="function" then
-			pcall(function() firesignal(target.Activated) end)
-			pcall(function() firesignal(target.MouseButton1Click) end)
-			pcall(function() firesignal(target.MouseButton1Down) end)
-			pcall(function() firesignal(target.MouseButton1Up) end)
-		end
-		local vim=game:FindService("VirtualInputManager")
-		if vim then
-			pcall(function()
-				local ap=target.AbsolutePosition; local sz=target.AbsoluteSize
-				local cx=ap.X+sz.X/2; local cy=ap.Y+sz.Y/2
-				vim:SendMouseButtonEvent(cx,cy,0,true,game,1)
-				task.wait(0.05)
-				vim:SendMouseButtonEvent(cx,cy,0,false,game,1)
-			end)
-		end
-		return true
+	-- VIM mouse move + click at absolute center
+	local ok,vim=pcall(function() return game:GetService("VirtualInputManager") end)
+	if ok and vim then
+		pcall(function()
+			local ap=cat.AbsolutePosition; local sz=cat.AbsoluteSize
+			local cx=ap.X+sz.X/2; local cy=ap.Y+sz.Y/2
+			vim:SendMouseMoveEvent(cx,cy,game)
+			task.wait(0.05)
+			vim:SendMouseButtonEvent(cx,cy,0,true,game,0)
+			task.wait(0.08)
+			vim:SendMouseButtonEvent(cx,cy,0,false,game,0)
+			if CFG.DEBUG then print(("[fruit-tab] VIM click fired at (%d,%d)"):format(cx,cy)) end
+		end)
+	else
+		if CFG.DEBUG then print("[fruit-tab] VirtualInputManager unavailable") end
 	end
-	return false
+	return true
 end
 
 local cachedFruits={}
