@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 87 // Zioles gacha auto-spin + store on 1m+ fruit
+-- blox fruits ladder farm // FIX 88 // boot-first gacha check before any farming
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1828,6 +1828,17 @@ end))
 
 task.spawn(function()
 	task.wait(1.5); lastEquipTime=0; equipMasteryOrBest(); tryAutoBuyHaki()
+	if CFG.GACHA_ENABLED then
+		if CFG.DEBUG then print("[gacha] boot check — waiting for UI") end
+		local t0=os.clock()
+		while isRun() and (os.clock()-t0)<8 do
+			local pg=LP:FindFirstChild("PlayerGui")
+			if pg and pg:FindFirstChild("ZiolesGacha_Window") then break end
+			task.wait(0.5)
+		end
+		gachaLastTry=0
+		pcall(spinGachaStep)
+	end
 	while task.wait(0.15) do
 		if not isRun() then break end
 		if busy or zQuestBusy then setHoverTarget(nil); task.wait(0.2)
