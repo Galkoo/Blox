@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 82 // try-skip-swan tp
+-- blox fruits ladder farm // FIX 83 // brute skip-swan: arena-presence + trevor/dialogue chain + ZQuest Begin
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1544,6 +1544,24 @@ local function tryZBeginTeleport(label)
 	return tpSeen
 end
 
+local function bruteSwanSkipUnlock()
+	for _,args in ipairs({
+		{"TalkTrevor","1"},{"TalkTrevor","2"},{"TalkTrevor","3"},{"TalkTrevor","4"},
+		{"TalkTrevor","0"},{"TalkTrevor","5"},
+		{"Dialogue","Trevor"},{"Dialogue","Flamingo"},{"Dialogue","DonSwan"},
+		{"DressrosaQuestProgress","Flamingo"},{"DressrosaQuestProgress","Trevor"},
+		{"DressrosaQuestProgress","SwanDead"},{"DressrosaQuestProgress","MeetTrevor"},
+		{"DressrosaQuestProgress","Begin"},{"DressrosaQuestProgress","Complete"},
+		{"MrsFibi","Trevor"},{"MeetTrevor"},{"SwanAccess"},{"FlamingoAccess"},
+		{"ZQuestProgress","Trevor"},{"ZQuestProgress","Flamingo"},{"ZQuestProgress","Access"},
+	}) do
+		pcall(function() CommF:InvokeServer(table.unpack(args)) end)
+		if CFG.DEBUG then print(("[skip-swan] fired %s / %s"):format(args[1],tostring(args[2] or ""))) end
+		task.wait(0.3)
+	end
+	trevorAccessGranted=true
+end
+
 local function runDonSwanQuest()
 	if donSwanDone then return end
 	if readLevel()<CFG.DON_SWAN_LEVEL then return end
@@ -1552,12 +1570,15 @@ local function runDonSwanQuest()
 	setPlayerPlatformStand(false)
 	local h0=myHum(); if h0 then pcall(function() h0.PlatformStand=false end) end
 	pcall(function() CommF:InvokeServer("AbandonQuest") end); task.wait(0.2)
-	donSwanStageText="firing TalkTrevor 3 (Flamingo access)"
-	grantTrevorAccess()
+	donSwanStageText="skip-attempt: entering flamingo arena"
+	enterFlamingoArena(); task.wait(CFG.DON_SWAN_ARENA_WAIT)
 	donSwanBusy=false
+	donSwanStageText="skip-attempt: brute trevor/dialogue/dressrosa chain"
 	zQuestBusy=true
 	setHoverTarget(nil); clearBossLock(); resetHold()
 	setPlayerPlatformStand(false)
+	bruteSwanSkipUnlock()
+	donSwanStageText="skip-attempt: firing ZQuestProgress Begin"
 	local skipped=tryZBeginTeleport("trying skip-swan ZQuestProgress Begin")
 	zQuestBusy=false
 	if skipped then
