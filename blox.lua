@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 99 // scan ALL PlayerGui + F10 fruit-label path dump
+-- blox fruits ladder farm // FIX 100 // back to the ectoplasm pattern: exact TileGrid path + textOf
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1740,16 +1740,22 @@ end
 
 local function readInventoryFruits()
 	local out={}
-	local seen={}
 	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return out end
-	for _,d in ipairs(pg:GetDescendants()) do
-		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-			local ok,txt=pcall(function() return d.Text end)
-			if ok and txt and txt~="" and isFruitName(txt) then
-				local key=txt:lower()
-				if not seen[key] then
-					seen[key]=true
-					table.insert(out,txt)
+	local inv=pg:FindFirstChild("Inventory"); if not inv then return out end
+	local inner=inv:FindFirstChild("Inventory"); if not inner then return out end
+	local main=inner:FindFirstChild("Main"); if not main then return out end
+	local pc=main:FindFirstChild("PageContent"); if not pc then return out end
+	local tg=pc:FindFirstChild("TileGrid"); if not tg then return out end
+	for _,tile in ipairs(tg:GetChildren()) do
+		if tile.Name:find("Tile%-%d+") then
+			local det=tile:FindFirstChild("Details")
+			if det then
+				local l1=det:FindFirstChild("Line-1")
+				if l1 then
+					local nm=textOf(l1)
+					if nm and nm~="" then
+						table.insert(out,nm)
+					end
 				end
 			end
 		end
