@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 96 // fruits from backpack+char (always works) + F8 manual tab-switch
+-- blox fruits ladder farm // FIX 97 // F9 probe: dump Inventory tree + Tile texts
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1752,6 +1752,59 @@ local function readInventoryFruits()
 	end
 	return out
 end
+
+local function dumpInventoryProbe()
+	print("[probe] ==================== INVENTORY TREE ====================")
+	local pg=LP:FindFirstChild("PlayerGui")
+	if not pg then print("[probe] no PlayerGui"); return end
+	local inv=pg:FindFirstChild("Inventory")
+	if not inv then print("[probe] PlayerGui.Inventory does not exist — open your inventory first!"); return end
+	local inner=inv:FindFirstChild("Inventory") or inv
+	print("[probe] PlayerGui.Inventory exists, inner="..inner.Name)
+	local main=inner:FindFirstChild("Main")
+	if main then
+		print("[probe] Main found")
+		local nav=main:FindFirstChild("NavigationRail")
+		if nav then
+			print("[probe] NavigationRail children:")
+			for _,c in ipairs(nav:GetChildren()) do
+				print(("[probe]   %s (class=%s)"):format(c.Name,c.ClassName))
+			end
+			local cat=nav:FindFirstChild("Category2")
+			if cat then
+				print(("[probe] Category2 class=%s, descendants:"):format(cat.ClassName))
+				for _,d in ipairs(cat:GetDescendants()) do
+					print(("[probe]   %s (class=%s)"):format(d.Name,d.ClassName))
+				end
+			end
+		else print("[probe] no NavigationRail") end
+		local pc=main:FindFirstChild("PageContent")
+		if pc then
+			print("[probe] PageContent children:")
+			for _,c in ipairs(pc:GetChildren()) do
+				print(("[probe]   %s (class=%s)"):format(c.Name,c.ClassName))
+			end
+			local tg=pc:FindFirstChild("TileGrid")
+			if tg then
+				print(("[probe] TileGrid children count=%d:"):format(#tg:GetChildren()))
+				for _,t in ipairs(tg:GetChildren()) do
+					if t.Name:find("Tile%-%d+") then
+						local det=t:FindFirstChild("Details")
+						local l1=det and (det:FindFirstChild("Line-1") or det:FindFirstChild("Line1"))
+						local nm=textOf(l1)
+						print(("[probe]   %s → Line-1=%s"):format(t.Name,tostring(nm)))
+					end
+				end
+			else print("[probe] no TileGrid under PageContent") end
+		else print("[probe] no PageContent under Main") end
+	else print("[probe] no Main under Inventory") end
+	print("[probe] ==================== END ====================")
+end
+
+trackConn(UIS.InputBegan:Connect(function(input,gpe)
+	if gpe then return end
+	if input.KeyCode==Enum.KeyCode.F9 then dumpInventoryProbe() end
+end))
 
 local function ensureFruitTab()
 	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return false end
