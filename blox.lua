@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 92 // auto-click Category2 so fruits tab loads
+-- blox fruits ladder farm // FIX 93 // filter TileGrid by fruit name — tab-agnostic
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1714,6 +1714,22 @@ local function formatGachaCooldown(cd)
 	return string.format("%d:%02d",m,s)
 end
 
+local ALL_FRUITS={
+	"Rocket","Spin","Chop","Spring","Bomb","Smoke","Spike","Flame","Falcon","Ice","Sand","Dark",
+	"Diamond","Light","Rubber","Barrier","Magma","Door","Quake","Buddha","Love","Spider","Soul",
+	"Ghost","Rumble","Paw","Gravity","Dough","Mochi","Venom","Shadow","Phoenix","Portal","Dragon",
+	"T-Rex","TRex","Rex","Blizzard","Leopard","Control","Spirit","Kitsune","Yeti","Mammoth",
+	"Sound","Pain","Revive","String","Bird","Operation","Human",
+}
+local function isFruitName(nm)
+	if not nm or nm=="" then return false end
+	local lo=nm:lower()
+	for _,f in ipairs(ALL_FRUITS) do
+		if lo:find(f:lower(),1,true) then return true end
+	end
+	return false
+end
+
 local function readInventoryFruits()
 	local out={}
 	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return out end
@@ -1728,7 +1744,7 @@ local function readInventoryFruits()
 			if det then
 				local l1=det:FindFirstChild("Line-1") or det:FindFirstChild("Line1")
 				local nm=textOf(l1)
-				if nm and nm~="" and nm~="—" then
+				if nm and nm~="" and nm~="—" and isFruitName(nm) then
 					table.insert(out,nm)
 				end
 			end
