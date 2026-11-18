@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 91 // UI: gacha cooldown + inventory fruits strip
+-- blox fruits ladder farm // FIX 92 // auto-click Category2 so fruits tab loads
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1736,6 +1736,52 @@ local function readInventoryFruits()
 	end
 	return out
 end
+
+local function ensureFruitTab()
+	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return false end
+	local inv=pg:FindFirstChild("Inventory"); if not inv then return false end
+	local inner=inv:FindFirstChild("Inventory") or inv
+	local main=inner:FindFirstChild("Main"); if not main then return false end
+	local nav=main:FindFirstChild("NavigationRail"); if not nav then return false end
+	local cat=nav:FindFirstChild("Category2"); if not cat then return false end
+	local target=cat
+	if not cat:IsA("GuiButton") then
+		for _,d in ipairs(cat:GetDescendants()) do
+			if d:IsA("GuiButton") then target=d; break end
+		end
+	end
+	if target:IsA("GuiButton") then
+		if type(firesignal)=="function" then
+			pcall(function() firesignal(target.Activated) end)
+			pcall(function() firesignal(target.MouseButton1Click) end)
+			pcall(function() firesignal(target.MouseButton1Down) end)
+			pcall(function() firesignal(target.MouseButton1Up) end)
+		end
+		local vim=game:FindService("VirtualInputManager")
+		if vim then
+			pcall(function()
+				local ap=target.AbsolutePosition; local sz=target.AbsoluteSize
+				local cx=ap.X+sz.X/2; local cy=ap.Y+sz.Y/2
+				vim:SendMouseButtonEvent(cx,cy,0,true,game,1)
+				task.wait(0.05)
+				vim:SendMouseButtonEvent(cx,cy,0,false,game,1)
+			end)
+		end
+		return true
+	end
+	return false
+end
+
+local cachedFruits={}
+local lastFruitCacheTry=0
+local fruitCacheInterval=4.0
+
+local function refreshFruitCache()
+	if not ensureFruitTab() then return end
+	task.wait(0.35)
+	local list=readInventoryFruits()
+	if #list>0 then cachedFruits=list end
+end
 local function spinGachaStep()
 	if not CFG.GACHA_ENABLED then return false end
 	if os.clock()-gachaLastTry<CFG.GACHA_CHECK_EVERY then return false end
@@ -1766,6 +1812,7 @@ local function spinGachaStep()
 			if CFG.DEBUG then print("[gacha] duplicate detected, skipping store") end
 		else
 			tryStoreFruitByName(newHigh.name)
+			cachedFruits={}
 		end
 	else
 		if CFG.DEBUG then print("[gacha] no new 1m+ fruit from this spin") end
@@ -1930,9 +1977,15 @@ task.spawn(function()
 				end
 			end
 			if statusLabels.fruits then
-				local list=readInventoryFruits()
-				if #list==0 then statusLabels.fruits.Text="open Inventory → Treasure"
-				else statusLabels.fruits.Text=table.concat(list,", ") end
+				if #cachedFruits==0 then
+					if os.clock()-lastFruitCacheTry>fruitCacheInterval then
+						lastFruitCacheTry=os.clock()
+						task.spawn(refreshFruitCache)
+					end
+					statusLabels.fruits.Text="open Inventory, auto-switching to Treasure..."
+				else
+					statusLabels.fruits.Text=table.concat(cachedFruits,", ")
+				end
 			end
 		end
 	end
