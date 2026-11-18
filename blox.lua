@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 98 // brute-scan Inventory descendants + weapon blacklist
+-- blox fruits ladder farm // FIX 99 // scan ALL PlayerGui + F10 fruit-label path dump
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1742,11 +1742,10 @@ local function readInventoryFruits()
 	local out={}
 	local seen={}
 	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return out end
-	local inv=pg:FindFirstChild("Inventory"); if not inv then return out end
-	for _,d in ipairs(inv:GetDescendants()) do
+	for _,d in ipairs(pg:GetDescendants()) do
 		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-			local txt=d.Text
-			if txt and txt~="" and isFruitName(txt) then
+			local ok,txt=pcall(function() return d.Text end)
+			if ok and txt and txt~="" and isFruitName(txt) then
 				local key=txt:lower()
 				if not seen[key] then
 					seen[key]=true
@@ -1757,6 +1756,37 @@ local function readInventoryFruits()
 	end
 	return out
 end
+
+local function dumpFruitLabels()
+	print("[probe-f10] ========== all fruit-name TextLabels in PlayerGui ==========")
+	local pg=LP:FindFirstChild("PlayerGui")
+	if not pg then print("[probe-f10] no PlayerGui!"); return end
+	local function pathOf(o)
+		local p={}
+		while o and o~=game do table.insert(p,1,o.Name); o=o.Parent end
+		return table.concat(p,".")
+	end
+	local hits=0
+	for _,d in ipairs(pg:GetDescendants()) do
+		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+			local ok,txt=pcall(function() return d.Text end)
+			if ok and txt and txt~="" then
+				local isf=isFruitName(txt)
+				if isf then
+					hits=hits+1
+					print(("[probe-f10]   %s  ==  %q"):format(pathOf(d),txt))
+				end
+			end
+		end
+	end
+	print(("[probe-f10] total fruit-name matches: %d"):format(hits))
+	print("[probe-f10] ========== end ==========")
+end
+
+trackConn(UIS.InputBegan:Connect(function(input,gpe)
+	if gpe then return end
+	if input.KeyCode==Enum.KeyCode.F10 then dumpFruitLabels() end
+end))
 
 local function dumpInventoryProbe()
 	print("[probe] ==================== INVENTORY TREE ====================")
