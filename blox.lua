@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 84 // exact TalkTrevor 1→2 → ZQuest Begin skip chain
+-- blox fruits ladder farm // FIX 85 // TalkTrevor 1→2→3 as swan unlock, straight kill chain, no skip-attempt
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -487,8 +487,10 @@ local function grantTrevorAccess()
 	task.wait(CFG.DON_SWAN_TREVOR_STEP)
 	pcall(function() CommF:InvokeServer("TalkTrevor","2") end)
 	task.wait(CFG.DON_SWAN_TREVOR_STEP)
+	pcall(function() CommF:InvokeServer("TalkTrevor","3") end)
+	task.wait(CFG.DON_SWAN_TREVOR_STEP)
 	trevorAccessGranted=true
-	if CFG.DEBUG then print("[swan] TalkTrevor 1→2 fired") end
+	if CFG.DEBUG then print("[swan] TalkTrevor 1→2→3 fired") end
 end
 
 local newHitId
@@ -1553,50 +1555,33 @@ local function runDonSwanQuest()
 	setPlayerPlatformStand(false)
 	local h0=myHum(); if h0 then pcall(function() h0.PlatformStand=false end) end
 	pcall(function() CommF:InvokeServer("AbandonQuest") end); task.wait(0.2)
-	donSwanStageText="skip-attempt: entering flamingo arena"
+	donSwanStageText="firing TalkTrevor 1→2→3 (Flamingo access)"
+	grantTrevorAccess()
+	donSwanStageText="tween to arena 2288.7, 15.2, 863.7"
 	enterFlamingoArena(); task.wait(CFG.DON_SWAN_ARENA_WAIT)
 	donSwanBusy=false
-	donSwanStageText="skip-attempt: firing TalkTrevor 1→2"
+	donSwanStageText="waiting for Don Swan"
+	while isRun() do if findDonSwan() then break end; task.wait(0.5) end
+	donSwanStageText="killing Don Swan"
+	killBossGeneric(findDonSwan,CFG.DON_SWAN_HOVER,function(s) donSwanStageText="Don Swan "..s end,swanRespawnReentry)
+	if not isRun() then return end
+	donSwanDone=true
+	donSwanStageText="Don Swan down — resetting character"
+	setHoverTarget(nil); clearBossLock(); resetHold()
+	setPlayerPlatformStand(false)
+	donSwanBusy=true
+	resetCharacter()
+	repeat task.wait(0.4) until (not isRun()) or amAlive()
+	if not isRun() then return end
+	task.wait(CFG.DON_SWAN_RESET_WAIT)
+	donSwanBusy=false
 	zQuestBusy=true
 	setHoverTarget(nil); clearBossLock(); resetHold()
 	setPlayerPlatformStand(false)
-	grantTrevorAccess()
-	donSwanStageText="skip-attempt: firing ZQuestProgress Begin"
-	local skipped=tryZBeginTeleport("trying skip-swan ZQuestProgress Begin")
+	local tpSeen=tryZBeginTeleport("firing ZQuestProgress Begin (post-swan)")
+	donSwanStageText=tpSeen and "teleport landed — holding for settle" or "no teleport seen — holding anyway"
+	task.wait(CFG.Z_QUEST_WAIT)
 	zQuestBusy=false
-	if skipped then
-		donSwanDone=true
-		donSwanStageText="SKIPPED swan — TP to Zou landed"
-		task.wait(CFG.Z_QUEST_WAIT)
-	else
-		donSwanBusy=true
-		donSwanStageText="no TP — running Don Swan chain"
-		donSwanStageText="tween to arena 2288.7, 15.2, 863.7"
-		enterFlamingoArena(); task.wait(CFG.DON_SWAN_ARENA_WAIT)
-		donSwanBusy=false
-		donSwanStageText="waiting for Don Swan"
-		while isRun() do if findDonSwan() then break end; task.wait(0.5) end
-		donSwanStageText="killing Don Swan"
-		killBossGeneric(findDonSwan,CFG.DON_SWAN_HOVER,function(s) donSwanStageText="Don Swan "..s end,swanRespawnReentry)
-		if not isRun() then return end
-		donSwanDone=true
-		donSwanStageText="Don Swan down — resetting character"
-		setHoverTarget(nil); clearBossLock(); resetHold()
-		setPlayerPlatformStand(false)
-		donSwanBusy=true
-		resetCharacter()
-		repeat task.wait(0.4) until (not isRun()) or amAlive()
-		if not isRun() then return end
-		task.wait(CFG.DON_SWAN_RESET_WAIT)
-		donSwanBusy=false
-		zQuestBusy=true
-		setHoverTarget(nil); clearBossLock(); resetHold()
-		setPlayerPlatformStand(false)
-		local tpSeen=tryZBeginTeleport("firing ZQuestProgress Begin (post-swan)")
-		donSwanStageText=tpSeen and "teleport landed — holding for settle" or "no teleport seen — holding anyway"
-		task.wait(CFG.Z_QUEST_WAIT)
-		zQuestBusy=false
-	end
 	donSwanStageText="hunting rip_indra"
 	lastEquipTime=0; equipMasteryOrBest(); bumpHakiNow()
 	local waitStart=os.clock()
