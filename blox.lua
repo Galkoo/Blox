@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 88 // boot-first gacha check before any farming
+-- blox fruits ladder farm // FIX 89 // gacha uses server Check (works in every sea, no UI needed)
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1601,6 +1601,54 @@ local function parseGachaCooldownSeconds()
 	return 0
 end
 
+local function parseGachaCheckResult(r)
+	if r==nil then return 0 end
+	if type(r)=="boolean" then return r and 0 or 86400 end
+	if type(r)=="number" then return math.max(0,math.floor(r)) end
+	if type(r)=="string" then
+		local n=tonumber(r); if n then return math.max(0,math.floor(n)) end
+		local lo=r:lower()
+		if lo:find("ready",1,true) or lo:find("free",1,true) or lo:find("can",1,true) or lo:find("ok",1,true) or lo=="" then return 0 end
+		local h,m,s=r:match("(%d+):(%d+):(%d+)")
+		if h then return tonumber(h)*3600+tonumber(m)*60+tonumber(s) end
+		local m2,s2=r:match("(%d+):(%d+)")
+		if m2 then return tonumber(m2)*60+tonumber(s2) end
+		return 0
+	end
+	if type(r)=="table" then
+		for _,k in ipairs({"Ready","ready","Can","can","Available","available","CanSpin","canSpin","CanPurchase","canPurchase"}) do
+			if r[k]~=nil then if r[k]==true then return 0 end; if r[k]==false then return 86400 end end
+		end
+		for _,k in ipairs({"Cooldown","cooldown","Remaining","remaining","TimeLeft","timeLeft","NextSpin","nextSpin","Seconds","seconds","Time","time"}) do
+			local v=r[k]
+			if type(v)=="number" then return math.max(0,math.floor(v)) end
+			if type(v)=="string" then local n=tonumber(v); if n then return math.max(0,math.floor(n)) end end
+		end
+		for _,v in pairs(r) do
+			if type(v)=="number" and v>=0 and v<=86400*2 then return math.max(0,math.floor(v)) end
+		end
+		return 0
+	end
+	return nil
+end
+
+local function gachaCheck()
+	local mods=RS:FindFirstChild("Modules"); if not mods then return nil end
+	local net=mods:FindFirstChild("Net"); if not net then return nil end
+	local gnet=net:FindFirstChild("RF/GachaNetworkRF"); if not gnet then return nil end
+	local ok,r=pcall(function() return gnet:InvokeServer({{Context="Check",BoxName=CFG.GACHA_BOX_NAME}}) end)
+	if ok then
+		if CFG.DEBUG then print("[gacha] Check(wrapped) type="..type(r).." val="..tostring(r)) end
+		return r
+	end
+	local ok2,r2=pcall(function() return gnet:InvokeServer({Context="Check",BoxName=CFG.GACHA_BOX_NAME}) end)
+	if ok2 then
+		if CFG.DEBUG then print("[gacha] Check(unwrapped) type="..type(r2).." val="..tostring(r2)) end
+		return r2
+	end
+	return nil
+end
+
 local function fruitTools()
 	local out={}
 	local c=LP.Character
@@ -1640,9 +1688,13 @@ local function spinGachaStep()
 	if not CFG.GACHA_ENABLED then return false end
 	if os.clock()-gachaLastTry<CFG.GACHA_CHECK_EVERY then return false end
 	gachaLastTry=os.clock()
-	local cd=parseGachaCooldownSeconds()
+	local cd=parseGachaCheckResult(gachaCheck())
+	if cd==nil then cd=parseGachaCooldownSeconds() end
 	if cd==nil then return false end
-	if cd and cd>0 then return false end
+	if cd and cd>0 then
+		if CFG.DEBUG then print(("[gacha] cooldown %ds remaining"):format(cd)) end
+		return false
+	end
 	local beforeNames={}
 	for _,ft in ipairs(fruitTools()) do beforeNames[ft.name]=true end
 	if CFG.DEBUG then print("[gacha] cooldown ready, spinning ZiolesGacha") end
@@ -1829,13 +1881,7 @@ end))
 task.spawn(function()
 	task.wait(1.5); lastEquipTime=0; equipMasteryOrBest(); tryAutoBuyHaki()
 	if CFG.GACHA_ENABLED then
-		if CFG.DEBUG then print("[gacha] boot check — waiting for UI") end
-		local t0=os.clock()
-		while isRun() and (os.clock()-t0)<8 do
-			local pg=LP:FindFirstChild("PlayerGui")
-			if pg and pg:FindFirstChild("ZiolesGacha_Window") then break end
-			task.wait(0.5)
-		end
+		if CFG.DEBUG then print("[gacha] boot check — firing server Check") end
 		gachaLastTry=0
 		pcall(spinGachaStep)
 	end
