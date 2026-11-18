@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 103 // strip fruit UI + real gacha cooldown from post-spin Check
+-- blox fruits ladder farm // FIX 104 // stricter Check parser (never fake-ready) + deep return log
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1613,49 +1613,65 @@ local function parseGachaCooldownSeconds()
 end
 
 local function parseGachaCheckResult(r)
-	if r==nil then return 0 end
+	if r==nil then return nil end
 	if type(r)=="boolean" then return r and 0 or 86400 end
 	if type(r)=="number" then return math.max(0,math.floor(r)) end
 	if type(r)=="string" then
 		local n=tonumber(r); if n then return math.max(0,math.floor(n)) end
 		local lo=r:lower()
-		if lo:find("ready",1,true) or lo:find("free",1,true) or lo:find("can",1,true) or lo:find("ok",1,true) or lo=="" then return 0 end
+		if lo:find("ready",1,true) or lo:find("free",1,true) then return 0 end
 		local h,m,s=r:match("(%d+):(%d+):(%d+)")
 		if h then return (tonumber(h) or 0)*3600+(tonumber(m) or 0)*60+(tonumber(s) or 0) end
 		local m2,s2=r:match("(%d+):(%d+)")
 		if m2 then return (tonumber(m2) or 0)*60+(tonumber(s2) or 0) end
-		return 0
+		return nil
 	end
 	if type(r)=="table" then
-		for _,k in ipairs({"Ready","ready","Can","can","Available","available","CanSpin","canSpin","CanPurchase","canPurchase"}) do
-			if r[k]~=nil then if r[k]==true then return 0 end; if r[k]==false then return 86400 end end
-		end
-		for _,k in ipairs({"Cooldown","cooldown","Remaining","remaining","TimeLeft","timeLeft","NextSpin","nextSpin","Seconds","seconds","Time","time"}) do
+		for _,k in ipairs({"Cooldown","cooldown","Remaining","remaining","TimeLeft","timeLeft","NextSpin","nextSpin","Seconds","seconds","Time","time","NextPurchase","nextPurchase","NextClaim","nextClaim"}) do
 			local v=r[k]
 			if type(v)=="number" then return math.max(0,math.floor(v)) end
 			if type(v)=="string" then local n=tonumber(v); if n then return math.max(0,math.floor(n)) end end
 		end
-		for _,v in pairs(r) do
-			if type(v)=="number" and v>=0 and v<=86400*2 then return math.max(0,math.floor(v)) end
+		for _,k in ipairs({"Ready","ready","Can","can","Available","available","CanSpin","canSpin","CanPurchase","canPurchase"}) do
+			if r[k]==true then return 0 end
+			if r[k]==false then return 86400 end
 		end
-		return 0
+		for _,v in pairs(r) do
+			if type(v)=="number" and v>60 and v<=86400*2 then return math.max(0,math.floor(v)) end
+		end
+		return nil
 	end
 	return nil
+end
+
+local function logGachaReturn(tag,values)
+	if not CFG.DEBUG then return end
+	print(("[gacha] %s returned %d value(s):"):format(tag,#values))
+	for i,v in ipairs(values) do
+		if type(v)=="table" then
+			print(("[gacha]   [%d] table:"):format(i))
+			for k,vv in pairs(v) do
+				print(("[gacha]     %s = %s (%s)"):format(tostring(k),tostring(vv),type(vv)))
+			end
+		else
+			print(("[gacha]   [%d] %s (%s)"):format(i,tostring(v),type(v)))
+		end
+	end
 end
 
 local function gachaCheck()
 	local mods=RS:FindFirstChild("Modules"); if not mods then return nil end
 	local net=mods:FindFirstChild("Net"); if not net then return nil end
 	local gnet=net:FindFirstChild("RF/GachaNetworkRF"); if not gnet then return nil end
-	local ok,r=pcall(function() return gnet:InvokeServer({{Context="Check",BoxName=CFG.GACHA_BOX_NAME}}) end)
-	if ok then
-		if CFG.DEBUG then print("[gacha] Check(wrapped) type="..type(r).." val="..tostring(r)) end
-		return r
+	local ok,res=pcall(function() return {gnet:InvokeServer({{Context="Check",BoxName=CFG.GACHA_BOX_NAME}})} end)
+	if ok and res then
+		logGachaReturn("Check(wrapped)",res)
+		return res[1]
 	end
-	local ok2,r2=pcall(function() return gnet:InvokeServer({Context="Check",BoxName=CFG.GACHA_BOX_NAME}) end)
-	if ok2 then
-		if CFG.DEBUG then print("[gacha] Check(unwrapped) type="..type(r2).." val="..tostring(r2)) end
-		return r2
+	local ok2,res2=pcall(function() return {gnet:InvokeServer({Context="Check",BoxName=CFG.GACHA_BOX_NAME})} end)
+	if ok2 and res2 then
+		logGachaReturn("Check(unwrapped)",res2)
+		return res2[1]
 	end
 	return nil
 end
