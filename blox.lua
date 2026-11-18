@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 97 // F9 probe: dump Inventory tree + Tile texts
+-- blox fruits ladder farm // FIX 98 // brute-scan Inventory descendants + weapon blacklist
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1721,9 +1721,17 @@ local ALL_FRUITS={
 	"T-Rex","TRex","Rex","Blizzard","Leopard","Control","Spirit","Kitsune","Yeti","Mammoth",
 	"Sound","Pain","Revive","String","Bird","Operation","Human",
 }
+local WEAPON_WORDS={
+	"Cane","Blade","Katana","Sword","Mace","Trident","Pipe","Jitte","Saber","Pole",
+	"Cutlass","Combat","Canvander","Saddi","Shisui","Wando","Bisento","Buddy","Trident",
+	"Headed","Dual-Headed","Soul Cane",
+}
 local function isFruitName(nm)
 	if not nm or nm=="" then return false end
 	local lo=nm:lower()
+	for _,w in ipairs(WEAPON_WORDS) do
+		if lo:find(w:lower(),1,true) then return false end
+	end
 	for _,f in ipairs(ALL_FRUITS) do
 		if lo:find(f:lower(),1,true) then return true end
 	end
@@ -1732,20 +1740,17 @@ end
 
 local function readInventoryFruits()
 	local out={}
+	local seen={}
 	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return out end
 	local inv=pg:FindFirstChild("Inventory"); if not inv then return out end
-	local inner=inv:FindFirstChild("Inventory") or inv
-	local main=inner:FindFirstChild("Main"); if not main then return out end
-	local pc=main:FindFirstChild("PageContent"); if not pc then return out end
-	local tg=pc:FindFirstChild("TileGrid"); if not tg then return out end
-	for _,ch in ipairs(tg:GetChildren()) do
-		if ch.Name:find("Tile%-%d+") then
-			local det=ch:FindFirstChild("Details")
-			if det then
-				local l1=det:FindFirstChild("Line-1") or det:FindFirstChild("Line1")
-				local nm=textOf(l1)
-				if nm and nm~="" and nm~="—" and isFruitName(nm) then
-					table.insert(out,nm)
+	for _,d in ipairs(inv:GetDescendants()) do
+		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+			local txt=d.Text
+			if txt and txt~="" and isFruitName(txt) then
+				local key=txt:lower()
+				if not seen[key] then
+					seen[key]=true
+					table.insert(out,txt)
 				end
 			end
 		end
