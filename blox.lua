@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 83 // brute skip-swan: arena-presence + trevor/dialogue chain + ZQuest Begin
+-- blox fruits ladder farm // FIX 84 // exact TalkTrevor 1→2 → ZQuest Begin skip chain
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -483,11 +483,12 @@ end
 
 local function grantTrevorAccess()
 	if trevorAccessGranted then return end
-	for i=1,CFG.DON_SWAN_TREVOR_WAITS do
-		pcall(function() CommF:InvokeServer("TalkTrevor","3") end)
-		task.wait(CFG.DON_SWAN_TREVOR_STEP)
-	end
+	pcall(function() CommF:InvokeServer("TalkTrevor","1") end)
+	task.wait(CFG.DON_SWAN_TREVOR_STEP)
+	pcall(function() CommF:InvokeServer("TalkTrevor","2") end)
+	task.wait(CFG.DON_SWAN_TREVOR_STEP)
 	trevorAccessGranted=true
+	if CFG.DEBUG then print("[swan] TalkTrevor 1→2 fired") end
 end
 
 local newHitId
@@ -1544,24 +1545,6 @@ local function tryZBeginTeleport(label)
 	return tpSeen
 end
 
-local function bruteSwanSkipUnlock()
-	for _,args in ipairs({
-		{"TalkTrevor","1"},{"TalkTrevor","2"},{"TalkTrevor","3"},{"TalkTrevor","4"},
-		{"TalkTrevor","0"},{"TalkTrevor","5"},
-		{"Dialogue","Trevor"},{"Dialogue","Flamingo"},{"Dialogue","DonSwan"},
-		{"DressrosaQuestProgress","Flamingo"},{"DressrosaQuestProgress","Trevor"},
-		{"DressrosaQuestProgress","SwanDead"},{"DressrosaQuestProgress","MeetTrevor"},
-		{"DressrosaQuestProgress","Begin"},{"DressrosaQuestProgress","Complete"},
-		{"MrsFibi","Trevor"},{"MeetTrevor"},{"SwanAccess"},{"FlamingoAccess"},
-		{"ZQuestProgress","Trevor"},{"ZQuestProgress","Flamingo"},{"ZQuestProgress","Access"},
-	}) do
-		pcall(function() CommF:InvokeServer(table.unpack(args)) end)
-		if CFG.DEBUG then print(("[skip-swan] fired %s / %s"):format(args[1],tostring(args[2] or ""))) end
-		task.wait(0.3)
-	end
-	trevorAccessGranted=true
-end
-
 local function runDonSwanQuest()
 	if donSwanDone then return end
 	if readLevel()<CFG.DON_SWAN_LEVEL then return end
@@ -1573,11 +1556,11 @@ local function runDonSwanQuest()
 	donSwanStageText="skip-attempt: entering flamingo arena"
 	enterFlamingoArena(); task.wait(CFG.DON_SWAN_ARENA_WAIT)
 	donSwanBusy=false
-	donSwanStageText="skip-attempt: brute trevor/dialogue/dressrosa chain"
+	donSwanStageText="skip-attempt: firing TalkTrevor 1→2"
 	zQuestBusy=true
 	setHoverTarget(nil); clearBossLock(); resetHold()
 	setPlayerPlatformStand(false)
-	bruteSwanSkipUnlock()
+	grantTrevorAccess()
 	donSwanStageText="skip-attempt: firing ZQuestProgress Begin"
 	local skipped=tryZBeginTeleport("trying skip-swan ZQuestProgress Begin")
 	zQuestBusy=false
