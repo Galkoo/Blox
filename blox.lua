@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 94 // beefed Category2 click: VIM move+click + firesignal on Frame signals
+-- blox fruits ladder farm // FIX 95 // luau: tonumber coerce in cooldown parsers
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1614,9 +1614,9 @@ local function parseGachaCooldownSeconds()
 	local lo=txt:lower()
 	if lo:find("free",1,true) or lo:find("ready",1,true) or lo:find("spin",1,true) or lo:find("purchase",1,true) or lo:find("claim",1,true) or lo:find("now",1,true) then return 0 end
 	local h,m2,s=txt:match("(%d+):(%d+):(%d+)")
-	if h then return tonumber(h)*3600+tonumber(m2)*60+tonumber(s) end
+	if h then return (tonumber(h) or 0)*3600+(tonumber(m2) or 0)*60+(tonumber(s) or 0) end
 	local m3,s2=txt:match("(%d+):(%d+)")
-	if m3 then return tonumber(m3)*60+tonumber(s2) end
+	if m3 then return (tonumber(m3) or 0)*60+(tonumber(s2) or 0) end
 	local n=tonumber(txt:match("(%d+)"))
 	if n then return n end
 	return 0
@@ -1631,9 +1631,9 @@ local function parseGachaCheckResult(r)
 		local lo=r:lower()
 		if lo:find("ready",1,true) or lo:find("free",1,true) or lo:find("can",1,true) or lo:find("ok",1,true) or lo=="" then return 0 end
 		local h,m,s=r:match("(%d+):(%d+):(%d+)")
-		if h then return tonumber(h)*3600+tonumber(m)*60+tonumber(s) end
+		if h then return (tonumber(h) or 0)*3600+(tonumber(m) or 0)*60+(tonumber(s) or 0) end
 		local m2,s2=r:match("(%d+):(%d+)")
-		if m2 then return tonumber(m2)*60+tonumber(s2) end
+		if m2 then return (tonumber(m2) or 0)*60+(tonumber(s2) or 0) end
 		return 0
 	end
 	if type(r)=="table" then
