@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 89 // gacha uses server Check (works in every sea, no UI needed)
+-- blox fruits ladder farm // FIX 90 // exact StoreFruit signature: CommF("StoreFruit", "Name-Name", Tool)
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -1671,16 +1671,13 @@ end
 
 local function tryStoreFruitByName(name)
 	if not name then return false end
-	local attempts={
-		function() CommF:InvokeServer("StoreFruit",name) end,
-		function() CommF:InvokeServer("StoreFruit") end,
-		function() CommF:InvokeServer("Fruit","Store",name) end,
-		function() CommF:InvokeServer("StoreDevilFruit",name) end,
-		function() CommF:InvokeServer("Devil","Store",name) end,
-		function() CommF:InvokeServer("DevilFruit","Store",name) end,
-	}
-	for _,fn in ipairs(attempts) do pcall(fn); task.wait(0.35) end
-	return true
+	local n=name
+	if not n:find("%-") then n=n.."-"..n end
+	local tool=Instance.new("Tool")
+	local ok,res=pcall(function() return CommF:InvokeServer("StoreFruit",n,tool) end)
+	if CFG.DEBUG then print(("[gacha] StoreFruit %s → ok=%s res=%s"):format(n,tostring(ok),tostring(res))) end
+	pcall(function() tool:Destroy() end)
+	return ok
 end
 
 local gachaLastTry=0
