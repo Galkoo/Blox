@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 102 // exact TileGrid path only — kill the brute fallback (quest text bleed)
+-- blox fruits ladder farm // FIX 103 // strip fruit UI + real gacha cooldown from post-spin Check
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -362,7 +362,7 @@ do
 	lgv.TextXAlignment=Enum.TextXAlignment.Left; lgv.TextYAlignment=Enum.TextYAlignment.Center; lgv.ZIndex=5; lgv.Parent=lgF
 	cap(lgv,16,8); statusLabels.legend=lgv
 
-	local gcF=Instance.new("Frame"); gcF.Size=UDim2.new(0.38,-4,0.055,0); gcF.Position=UDim2.new(0,0,0.82,0)
+	local gcF=Instance.new("Frame"); gcF.Size=UDim2.new(1,0,0.055,0); gcF.Position=UDim2.new(0,0,0.82,0)
 	gcF.BackgroundColor3=Color3.fromRGB(24,20,36); gcF.BorderSizePixel=0; gcF.ZIndex=4; gcF.Parent=co
 	corn(gcF,10); strk(gcF,Color3.fromRGB(180,140,255),1,0.5)
 	local gcm=Instance.new("TextLabel"); gcm.Size=UDim2.new(0,52,1,0); gcm.Position=UDim2.new(0,12,0,0); gcm.BackgroundTransparency=1
@@ -371,16 +371,6 @@ do
 	gcv.TextColor3=Color3.fromRGB(220,200,255); gcv.Font=Enum.Font.GothamBold; gcv.TextScaled=true
 	gcv.TextXAlignment=Enum.TextXAlignment.Left; gcv.TextYAlignment=Enum.TextYAlignment.Center; gcv.ZIndex=5; gcv.Parent=gcF
 	cap(gcv,18,9); statusLabels.gacha=gcv
-
-	local frF=Instance.new("Frame"); frF.Size=UDim2.new(0.62,-4,0.055,0); frF.Position=UDim2.new(0.38,4,0.82,0)
-	frF.BackgroundColor3=Color3.fromRGB(20,28,32); frF.BorderSizePixel=0; frF.ZIndex=4; frF.Parent=co
-	corn(frF,10); strk(frF,Color3.fromRGB(140,220,180),1,0.5)
-	local frm=Instance.new("TextLabel"); frm.Size=UDim2.new(0,52,1,0); frm.Position=UDim2.new(0,12,0,0); frm.BackgroundTransparency=1
-	frm.Text="FRUITS"; frm.TextColor3=Color3.fromRGB(140,220,180); frm.Font=Enum.Font.GothamBold; frm.TextSize=10; frm.TextXAlignment=Enum.TextXAlignment.Left; frm.ZIndex=5; frm.Parent=frF
-	local frv=Instance.new("TextLabel"); frv.Size=UDim2.new(1,-74,1,-4); frv.Position=UDim2.new(0,66,0,2); frv.BackgroundTransparency=1; frv.Text="—"
-	frv.TextColor3=Color3.fromRGB(200,240,220); frv.Font=Enum.Font.GothamSemibold; frv.TextScaled=true
-	frv.TextXAlignment=Enum.TextXAlignment.Left; frv.TextYAlignment=Enum.TextYAlignment.Center; frv.ZIndex=5; frv.Parent=frF
-	cap(frv,16,8); statusLabels.fruits=frv
 
 	local ft=Instance.new("Frame"); ft.Size=UDim2.new(1,0,0.06,0); ft.Position=UDim2.new(0,0,0.93,0); ft.BackgroundTransparency=1; ft.ZIndex=4; ft.Parent=co
 	local br=Instance.new("TextLabel"); br.Size=UDim2.new(1,0,1,0); br.BackgroundTransparency=1
@@ -1714,235 +1704,7 @@ local function formatGachaCooldown(cd)
 	return string.format("%d:%02d",m,s)
 end
 
-local ALL_FRUITS={
-	"Rocket","Spin","Chop","Spring","Bomb","Smoke","Spike","Flame","Falcon","Ice","Sand","Dark",
-	"Diamond","Light","Rubber","Barrier","Magma","Door","Quake","Buddha","Love","Spider","Soul",
-	"Ghost","Rumble","Paw","Gravity","Dough","Mochi","Venom","Shadow","Phoenix","Portal","Dragon",
-	"T-Rex","TRex","Rex","Blizzard","Leopard","Control","Spirit","Kitsune","Yeti","Mammoth",
-	"Sound","Pain","Revive","String","Bird","Operation","Human",
-}
-local WEAPON_WORDS={
-	"Cane","Blade","Katana","Sword","Mace","Trident","Pipe","Jitte","Saber","Pole",
-	"Cutlass","Combat","Canvander","Saddi","Shisui","Wando","Bisento","Buddy","Trident",
-	"Headed","Dual-Headed","Soul Cane",
-}
-local function isFruitName(nm)
-	if not nm or nm=="" then return false end
-	local lo=nm:lower()
-	for _,w in ipairs(WEAPON_WORDS) do
-		if lo:find(w:lower(),1,true) then return false end
-	end
-	for _,f in ipairs(ALL_FRUITS) do
-		if lo:find(f:lower(),1,true) then return true end
-	end
-	return false
-end
 
-local function readInventoryFruits()
-	local out={}
-	local seen={}
-	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return out end
-	local inv=pg:FindFirstChild("Inventory"); if not inv then return out end
-	local inner=inv:FindFirstChild("Inventory") or inv
-	local main=inner:FindFirstChild("Main"); if not main then return out end
-	local pc=main:FindFirstChild("PageContent"); if not pc then return out end
-	local tg=pc:FindFirstChild("TileGrid"); if not tg then return out end
-	for _,tile in ipairs(tg:GetChildren()) do
-		if tile.Name:find("Tile%-%d+") then
-			local det=tile:FindFirstChild("Details")
-			if det then
-				local l1=det:FindFirstChild("Line-1")
-				if l1 then
-					local nm=textOf(l1)
-					if nm and nm~="" and #nm<=25 and not nm:find("[<>;]") and isFruitName(nm) and not seen[nm:lower()] then
-						seen[nm:lower()]=true
-						table.insert(out,nm)
-					end
-				end
-			end
-		end
-	end
-	return out
-end
-
-local function dumpFruitLabels()
-	print("[probe-f10] ========== all fruit-name TextLabels in PlayerGui ==========")
-	local pg=LP:FindFirstChild("PlayerGui")
-	if not pg then print("[probe-f10] no PlayerGui!"); return end
-	local function pathOf(o)
-		local p={}
-		while o and o~=game do table.insert(p,1,o.Name); o=o.Parent end
-		return table.concat(p,".")
-	end
-	local hits=0
-	for _,d in ipairs(pg:GetDescendants()) do
-		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-			local ok,txt=pcall(function() return d.Text end)
-			if ok and txt and txt~="" then
-				local isf=isFruitName(txt)
-				if isf then
-					hits=hits+1
-					print(("[probe-f10]   %s  ==  %q"):format(pathOf(d),txt))
-				end
-			end
-		end
-	end
-	print(("[probe-f10] total fruit-name matches: %d"):format(hits))
-	print("[probe-f10] ========== end ==========")
-end
-
-trackConn(UIS.InputBegan:Connect(function(input,gpe)
-	if gpe then return end
-	if input.KeyCode==Enum.KeyCode.F10 then dumpFruitLabels() end
-end))
-
-local function dumpInventoryProbe()
-	print("[probe] ==================== INVENTORY TREE ====================")
-	local pg=LP:FindFirstChild("PlayerGui")
-	if not pg then print("[probe] no PlayerGui"); return end
-	local inv=pg:FindFirstChild("Inventory")
-	if not inv then print("[probe] PlayerGui.Inventory does not exist — open your inventory first!"); return end
-	local inner=inv:FindFirstChild("Inventory") or inv
-	print("[probe] PlayerGui.Inventory exists, inner="..inner.Name)
-	local main=inner:FindFirstChild("Main")
-	if main then
-		print("[probe] Main found")
-		local nav=main:FindFirstChild("NavigationRail")
-		if nav then
-			print("[probe] NavigationRail children:")
-			for _,c in ipairs(nav:GetChildren()) do
-				print(("[probe]   %s (class=%s)"):format(c.Name,c.ClassName))
-			end
-			local cat=nav:FindFirstChild("Category2")
-			if cat then
-				print(("[probe] Category2 class=%s, descendants:"):format(cat.ClassName))
-				for _,d in ipairs(cat:GetDescendants()) do
-					print(("[probe]   %s (class=%s)"):format(d.Name,d.ClassName))
-				end
-			end
-		else print("[probe] no NavigationRail") end
-		local pc=main:FindFirstChild("PageContent")
-		if pc then
-			print("[probe] PageContent children:")
-			for _,c in ipairs(pc:GetChildren()) do
-				print(("[probe]   %s (class=%s)"):format(c.Name,c.ClassName))
-			end
-			local tg=pc:FindFirstChild("TileGrid")
-			if tg then
-				print(("[probe] TileGrid children count=%d:"):format(#tg:GetChildren()))
-				for _,t in ipairs(tg:GetChildren()) do
-					if t.Name:find("Tile%-%d+") then
-						local det=t:FindFirstChild("Details")
-						local l1=det and (det:FindFirstChild("Line-1") or det:FindFirstChild("Line1"))
-						local nm=textOf(l1)
-						print(("[probe]   %s → Line-1=%s"):format(t.Name,tostring(nm)))
-					end
-				end
-			else print("[probe] no TileGrid under PageContent") end
-		else print("[probe] no PageContent under Main") end
-	else print("[probe] no Main under Inventory") end
-	print("[probe] ==================== END ====================")
-end
-
-trackConn(UIS.InputBegan:Connect(function(input,gpe)
-	if gpe then return end
-	if input.KeyCode==Enum.KeyCode.F9 then dumpInventoryProbe() end
-end))
-
-local function ensureFruitTab()
-	local pg=LP:FindFirstChild("PlayerGui"); if not pg then return false end
-	local inv=pg:FindFirstChild("Inventory"); if not inv then
-		if CFG.DEBUG then print("[fruit-tab] no Inventory window — open it") end; return false
-	end
-	local inner=inv:FindFirstChild("Inventory") or inv
-	local main=inner:FindFirstChild("Main"); if not main then return false end
-	local nav=main:FindFirstChild("NavigationRail"); if not nav then return false end
-	local cat=nav:FindFirstChild("Category2"); if not cat then return false end
-	if CFG.DEBUG then print(("[fruit-tab] Category2 found (class=%s), firing click"):format(cat.ClassName)) end
-	-- fire signals on Category2 AND descendants (regardless of whether it's a GuiButton)
-	if type(firesignal)=="function" then
-		local function fs(obj)
-			for _,sig in ipairs({"Activated","MouseButton1Click","MouseButton1Down","MouseButton1Up"}) do
-				pcall(function() firesignal(obj[sig]) end)
-			end
-		end
-		fs(cat)
-		for _,d in ipairs(cat:GetDescendants()) do
-			if d:IsA("GuiObject") then fs(d) end
-		end
-	end
-	-- VIM mouse move + click at absolute center
-	local ok,vim=pcall(function() return game:GetService("VirtualInputManager") end)
-	if ok and vim then
-		pcall(function()
-			local ap=cat.AbsolutePosition; local sz=cat.AbsoluteSize
-			local cx=ap.X+sz.X/2; local cy=ap.Y+sz.Y/2
-			vim:SendMouseMoveEvent(cx,cy,game)
-			task.wait(0.05)
-			vim:SendMouseButtonEvent(cx,cy,0,true,game,0)
-			task.wait(0.08)
-			vim:SendMouseButtonEvent(cx,cy,0,false,game,0)
-			if CFG.DEBUG then print(("[fruit-tab] VIM click fired at (%d,%d)"):format(cx,cy)) end
-		end)
-	else
-		if CFG.DEBUG then print("[fruit-tab] VirtualInputManager unavailable") end
-	end
-	return true
-end
-
-local function readFruitsFromBackpack()
-	local out={}
-	local c=LP.Character
-	if c then
-		for _,t in ipairs(c:GetChildren()) do
-			if t:IsA("Tool") and isFruitName(t.Name) then table.insert(out,t.Name.." [hand]") end
-		end
-	end
-	local bp=LP:FindFirstChildOfClass("Backpack")
-	if bp then
-		for _,t in ipairs(bp:GetChildren()) do
-			if t:IsA("Tool") and isFruitName(t.Name) then table.insert(out,t.Name) end
-		end
-	end
-	return out
-end
-
-local function readAllFruits()
-	local seen={}
-	local out={}
-	for _,n in ipairs(readFruitsFromBackpack()) do
-		local key=n:lower()
-		if not seen[key] then seen[key]=true; table.insert(out,n) end
-	end
-	for _,n in ipairs(readInventoryFruits()) do
-		local key=n:lower()
-		if not seen[key] then seen[key]=true; table.insert(out,n) end
-	end
-	return out
-end
-
-local cachedFruits={}
-local lastFruitCacheTry=0
-local fruitCacheInterval=4.0
-
-local function refreshFruitCache()
-	ensureFruitTab()
-	task.wait(0.35)
-	local list=readAllFruits()
-	cachedFruits=list
-end
-
-trackConn(UIS.InputBegan:Connect(function(input,gpe)
-	if gpe then return end
-	if input.KeyCode==Enum.KeyCode.F8 then
-		if CFG.DEBUG then print("[fruit-tab] F8 — manual Category2 click") end
-		task.spawn(function()
-			ensureFruitTab(); task.wait(0.4)
-			cachedFruits=readAllFruits()
-			if CFG.DEBUG then print(("[fruit-tab] after click: %d fruits found"):format(#cachedFruits)) end
-		end)
-	end
-end))
 local function spinGachaStep()
 	if not CFG.GACHA_ENABLED then return false end
 	if os.clock()-gachaLastTry<CFG.GACHA_CHECK_EVERY then return false end
@@ -1973,12 +1735,18 @@ local function spinGachaStep()
 			if CFG.DEBUG then print("[gacha] duplicate detected, skipping store") end
 		else
 			tryStoreFruitByName(newHigh.name)
-			cachedFruits={}
 		end
 	else
 		if CFG.DEBUG then print("[gacha] no new 1m+ fruit from this spin") end
 	end
-	gachaCooldownAt=os.clock()+7200
+	task.wait(1.0)
+	local postCd=parseGachaCheckResult(gachaCheck())
+	if postCd~=nil then
+		gachaCooldownAt=os.clock()+postCd
+		if CFG.DEBUG then print(("[gacha] post-spin Check: %ds remaining"):format(postCd)) end
+	else
+		gachaCooldownAt=os.clock()+7200
+	end
 	return true
 end
 
@@ -2135,19 +1903,6 @@ task.spawn(function()
 					statusLabels.gacha.Text=formatGachaCooldown(remaining)
 				else
 					statusLabels.gacha.Text="OFF"
-				end
-			end
-			if statusLabels.fruits then
-				local live=readAllFruits()
-				if #live>0 then cachedFruits=live end
-				if #cachedFruits==0 then
-					if os.clock()-lastFruitCacheTry>fruitCacheInterval then
-						lastFruitCacheTry=os.clock()
-						task.spawn(refreshFruitCache)
-					end
-					statusLabels.fruits.Text="no fruits found — eat one or press F8 to retry Treasure tab"
-				else
-					statusLabels.fruits.Text=table.concat(cachedFruits,", ")
 				end
 			end
 		end
