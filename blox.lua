@@ -1,4 +1,4 @@
--- blox fruits ladder farm // FIX 85 // TalkTrevor 1→2→3 as swan unlock, straight kill chain, no skip-attempt
+-- blox fruits ladder farm // FIX 86 // real swan gate: TalkTrevor 1→2 + equip 1m+ fruit + TalkTrevor 1
 -- built by olivia — https://discord.gg/ojailbreaks
 
 local Players=game:GetService("Players")
@@ -481,17 +481,12 @@ do
 	end)
 end
 
-local function grantTrevorAccess()
-	if trevorAccessGranted then return end
-	pcall(function() CommF:InvokeServer("TalkTrevor","1") end)
-	task.wait(CFG.DON_SWAN_TREVOR_STEP)
-	pcall(function() CommF:InvokeServer("TalkTrevor","2") end)
-	task.wait(CFG.DON_SWAN_TREVOR_STEP)
-	pcall(function() CommF:InvokeServer("TalkTrevor","3") end)
-	task.wait(CFG.DON_SWAN_TREVOR_STEP)
-	trevorAccessGranted=true
-	if CFG.DEBUG then print("[swan] TalkTrevor 1→2→3 fired") end
-end
+local HIGH_VALUE_FRUITS={
+	"Quake","Love","Spider","Soul","Ghost","Rumble","Paw","Gravity","Dough","Mochi",
+	"Venom","Shadow","Phoenix","Portal","Dragon","T-Rex","TRex","Rex","Blizzard",
+	"Leopard","Control","Spirit","Kitsune","Buddha","Yeti","Mammoth","Sound","Pain",
+}
+local grantTrevorAccess  -- forward decl, body below
 
 local newHitId
 do
@@ -1519,6 +1514,69 @@ local function runIceQuest()
 	iceStageText="second-sea handoff done — saved"; task.wait(3); iceStageText=nil
 end
 
+local function findHighValueFruit()
+	local function checkTool(t)
+		if not t or not t:IsA("Tool") then return false end
+		local nm=(t.Name or ""):lower()
+		if nm:find("fruit",1,true) and not nm:find("-fruit",1,true) and not (nm:sub(-6)=="-fruit") then
+			-- likely uneaten consumable; skip to avoid triggering eat prompt
+		end
+		for _,fname in ipairs(HIGH_VALUE_FRUITS) do
+			if nm:find(fname:lower(),1,true) then return true end
+		end
+		return false
+	end
+	local c=LP.Character
+	if c then
+		for _,t in ipairs(c:GetChildren()) do
+			if checkTool(t) then return t,true end
+		end
+	end
+	local bp=LP:FindFirstChildOfClass("Backpack")
+	if bp then
+		for _,t in ipairs(bp:GetChildren()) do
+			if checkTool(t) then return t,false end
+		end
+	end
+	return nil,false
+end
+
+local function equipHighValueFruit()
+	local tool,inChar=findHighValueFruit()
+	if not tool then
+		if CFG.DEBUG then print("[swan] no 1m+ fruit found in backpack/character") end
+		return false
+	end
+	if inChar then
+		if CFG.DEBUG then print("[swan] fruit already in hand: "..tool.Name) end
+		return true
+	end
+	local h=LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+	if not h then return false end
+	pcall(function() h:EquipTool(tool) end)
+	local d=os.clock()+0.6
+	while os.clock()<d do if tool.Parent==LP.Character then break end; task.wait(0.05) end
+	if tool.Parent~=LP.Character then pcall(function() tool.Parent=LP.Character end); task.wait(0.1) end
+	local e=tool:FindFirstChild("EquipEvent")
+	if e then pcall(function() e:FireServer(true) end) end
+	if CFG.DEBUG then print("[swan] equipped fruit: "..tool.Name) end
+	return tool.Parent==LP.Character
+end
+
+function grantTrevorAccess()
+	if trevorAccessGranted then return end
+	pcall(function() CommF:InvokeServer("TalkTrevor","1") end)
+	task.wait(CFG.DON_SWAN_TREVOR_STEP)
+	pcall(function() CommF:InvokeServer("TalkTrevor","2") end)
+	task.wait(CFG.DON_SWAN_TREVOR_STEP)
+	equipHighValueFruit()
+	task.wait(0.5)
+	pcall(function() CommF:InvokeServer("TalkTrevor","1") end)
+	task.wait(CFG.DON_SWAN_TREVOR_STEP)
+	trevorAccessGranted=true
+	if CFG.DEBUG then print("[swan] TalkTrevor 1→2→(fruit)→1 fired, access granted") end
+end
+
 local function enterFlamingoArena()
 	pcall(function() CommF:InvokeServer("requestEntrance",CFG.DON_SWAN_ARENA_POS) end); task.wait(0.4)
 	stepTravel(CFG.DON_SWAN_ARENA_POS)
@@ -1555,8 +1613,9 @@ local function runDonSwanQuest()
 	setPlayerPlatformStand(false)
 	local h0=myHum(); if h0 then pcall(function() h0.PlatformStand=false end) end
 	pcall(function() CommF:InvokeServer("AbandonQuest") end); task.wait(0.2)
-	donSwanStageText="firing TalkTrevor 1→2→3 (Flamingo access)"
+	donSwanStageText="firing TalkTrevor 1→2→(fruit)→1 (Flamingo access)"
 	grantTrevorAccess()
+	lastEquipTime=0; equipMasteryOrBest()
 	donSwanStageText="tween to arena 2288.7, 15.2, 863.7"
 	enterFlamingoArena(); task.wait(CFG.DON_SWAN_ARENA_WAIT)
 	donSwanBusy=false
